@@ -1,30 +1,68 @@
-import { useState } from "react";
-import { Send, BookOpen } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Send, BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: string[];
+  created_at?: string;
 }
 
 const Chat = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "Hello! I'm Jamont, your AI tutor. I'm here to help you understand your curriculum materials with patience and clarity. What would you like to learn about today?",
-    },
-  ]);
+  const { session } = useAuth();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadChatHistory();
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const loadChatHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .limit(50);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setMessages(data as Message[]);
+      } else {
+        setMessages([
+          {
+            id: "welcome",
+            role: "assistant",
+            content: "Hello! I'm Jamont, your AI tutor. I'm here to help you understand your curriculum materials with patience and clarity. Upload your curriculum in the Curriculum Library, then come back and ask me anything!",
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !session) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -36,18 +74,44 @@ const Chat = () => {
     setInput("");
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.functions.invoke('chat', {
+        body: {
+          question: input,
+          conversationHistory: messages.slice(-10),
+        },
+      });
+
+      if (error) throw error;
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "I understand your question. However, I need you to upload your curriculum materials first so I can provide accurate answers based on your specific textbooks. Please visit the Curriculum page to upload your study materials.",
-        sources: ["Upload curriculum first"],
+        content: data.answer,
+        sources: data.sources,
       };
+
       setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "I apologize, but I encountered an error. Please try again or upload your curriculum materials if you haven't already.",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
+
+  if (loadingHistory) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -65,7 +129,7 @@ const Chat = () => {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.map((message) => (
             <div
