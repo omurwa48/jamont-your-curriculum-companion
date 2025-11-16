@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      certificates: {
+        Row: {
+          certificate_url: string | null
+          course_id: string | null
+          description: string | null
+          id: string
+          issued_date: string | null
+          share_url: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          certificate_url?: string | null
+          course_id?: string | null
+          description?: string | null
+          id?: string
+          issued_date?: string | null
+          share_url?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          certificate_url?: string | null
+          course_id?: string | null
+          description?: string | null
+          id?: string
+          issued_date?: string | null
+          share_url?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificates_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_messages: {
         Row: {
           content: string
@@ -37,6 +78,48 @@ export type Database = {
           id?: string
           role?: string
           sources?: string[] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      courses: {
+        Row: {
+          completed_lessons: number | null
+          created_at: string | null
+          description: string | null
+          difficulty: string | null
+          estimated_hours: number | null
+          id: string
+          thumbnail_url: string | null
+          title: string
+          total_lessons: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_lessons?: number | null
+          created_at?: string | null
+          description?: string | null
+          difficulty?: string | null
+          estimated_hours?: number | null
+          id?: string
+          thumbnail_url?: string | null
+          title: string
+          total_lessons?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_lessons?: number | null
+          created_at?: string | null
+          description?: string | null
+          difficulty?: string | null
+          estimated_hours?: number | null
+          id?: string
+          thumbnail_url?: string | null
+          title?: string
+          total_lessons?: number | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -121,6 +204,39 @@ export type Database = {
         }
         Relationships: []
       }
+      feed_posts: {
+        Row: {
+          comments_count: number | null
+          content: string
+          created_at: string | null
+          id: string
+          image_url: string | null
+          likes_count: number | null
+          post_type: string
+          user_id: string
+        }
+        Insert: {
+          comments_count?: number | null
+          content: string
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          likes_count?: number | null
+          post_type: string
+          user_id: string
+        }
+        Update: {
+          comments_count?: number | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          likes_count?: number | null
+          post_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       learning_streaks: {
         Row: {
           created_at: string | null
@@ -154,6 +270,53 @@ export type Database = {
         }
         Relationships: []
       }
+      lessons: {
+        Row: {
+          completed_at: string | null
+          content: string | null
+          course_id: string
+          created_at: string | null
+          id: string
+          is_completed: boolean | null
+          lesson_order: number
+          title: string
+          user_id: string
+          xp_reward: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          content?: string | null
+          course_id: string
+          created_at?: string | null
+          id?: string
+          is_completed?: boolean | null
+          lesson_order: number
+          title: string
+          user_id: string
+          xp_reward?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          content?: string | null
+          course_id?: string
+          created_at?: string | null
+          id?: string
+          is_completed?: boolean | null
+          lesson_order?: number
+          title?: string
+          user_id?: string
+          xp_reward?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notebook_entries: {
         Row: {
           content: string
@@ -186,6 +349,67 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      post_comments: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_likes: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -302,6 +526,72 @@ export type Database = {
           badge_type?: string
           earned_at?: string | null
           id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_connections: {
+        Row: {
+          created_at: string | null
+          follower_id: string
+          following_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string | null
+          follower_id: string
+          following_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string | null
+          follower_id?: string
+          following_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      user_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          courses_completed: number | null
+          created_at: string | null
+          display_name: string | null
+          id: string
+          level: number | null
+          linkedin_url: string | null
+          study_streak: number | null
+          total_xp: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          courses_completed?: number | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          level?: number | null
+          linkedin_url?: string | null
+          study_streak?: number | null
+          total_xp?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          courses_completed?: number | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          level?: number | null
+          linkedin_url?: string | null
+          study_streak?: number | null
+          total_xp?: number | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
