@@ -3,11 +3,14 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Index from "./pages/Index";
+import Dashboard from "./pages/Dashboard";
+import Courses from "./pages/Courses";
 import Curriculum from "./pages/Curriculum";
 import Chat from "./pages/Chat";
 import Notebook from "./pages/Notebook";
 import Progress from "./pages/Progress";
+import Feed from "./pages/Feed";
+import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Navigation from "./components/Navigation";
@@ -47,7 +50,18 @@ const App = () => (
               <ProtectedRoute>
                 <Navigation />
                 <div className="pb-16 md:pb-0 md:pt-16">
-                  <Index />
+                  <Dashboard />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/courses"
+            element={
+              <ProtectedRoute>
+                <Navigation />
+                <div className="pb-16 md:pb-0 md:pt-16">
+                  <Courses />
                 </div>
               </ProtectedRoute>
             }
@@ -92,6 +106,28 @@ const App = () => (
                 <Navigation />
                 <div className="pb-16 md:pb-0 md:pt-16">
                   <Progress />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/feed"
+            element={
+              <ProtectedRoute>
+                <Navigation />
+                <div className="pb-16 md:pb-0 md:pt-16">
+                  <Feed />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Navigation />
+                <div className="pb-16 md:pb-0 md:pt-16">
+                  <Profile />
                 </div>
               </ProtectedRoute>
             }
