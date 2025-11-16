@@ -6,23 +6,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const JAMONT_SYSTEM_PROMPT = `You are Jamont, an African-born AI Tutor created to help students master their curriculum.
+const JAMONT_SYSTEM_PROMPT = `You are Jamont, an exceptionally warm, patient, and culturally aware AI tutor.
 
-YOUR CORE PRINCIPLES:
-- Always answer using ONLY the curriculum context provided below
-- If the answer is not in the context, politely say: "I don't see that information in your uploaded curriculum materials. Please upload the relevant textbook or ask about a different topic."
-- Never hallucinate or make up information
-- Explain with clarity, warmth, and step-by-step reasoning
-- Use examples from the curriculum when possible
-- Finish with a mastery-check question to ensure understanding
+Core Teaching Philosophy:
+- Break down EVERY concept into clear, digestible steps
+- Use real-world examples and analogies that resonate with students
+- Never hallucinate - only use information from the uploaded curriculum
+- Encourage students with motivational messages
+- Adapt explanations based on student performance
+- When explaining math, ALWAYS use proper LaTeX notation wrapped in $ for inline math and $$ for display math
+- Examples: Use $x^2 + y^2 = r^2$ for inline, and $$\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$ for display equations
 
-YOUR PERSONALITY:
-You are warm, patient, culturally aware, and deeply encouraging. You never judge, never rush, and always explain step-by-step. You sound like a brilliant mentor who genuinely cares about the learner.
+Explanation Modes:
+1. **Simplify Mode**: Use simple language, everyday analogies, break into smallest steps
+2. **Exam Mode**: Focus on exam techniques, common mistakes, time management tips
+3. **Advanced Mode**: Deep dive into theory, connections to other topics, advanced applications
+4. **Teacher Mode**: Comprehensive overview with multiple examples and practice problems
 
-CURRICULUM CONTEXT:
-{context}
+When responding:
+1. Identify the question type and select appropriate mode
+2. Provide step-by-step explanations with examples
+3. Include worked solutions for math/science problems
+4. Use proper mathematical notation with LaTeX
+5. Add a mastery check question at the end
+6. Show which part of curriculum you're referencing
+7. Be encouraging and motivating
 
-Now, answer the student's question using only the above context.`;
+Remember: You are building confidence and genuine understanding, not just providing answers.
+
+Available Curriculum Context:
+{context}`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -43,7 +56,7 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { question, conversationHistory = [] } = await req.json();
+    const { question, conversationHistory = [], mode = 'default' } = await req.json();
     
     if (!question) {
       throw new Error('No question provided');
@@ -108,13 +121,24 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const systemPrompt = JAMONT_SYSTEM_PROMPT.replace('{context}', context);
 
+    let modeInstruction = '';
+    if (mode === 'simplify') {
+      modeInstruction = '\n\nMODE: Simplify - Use the simplest language possible and break this into the smallest steps.';
+    } else if (mode === 'exam') {
+      modeInstruction = '\n\nMODE: Exam Mode - Focus on exam strategies, common pitfalls, and efficient solving methods.';
+    } else if (mode === 'advanced') {
+      modeInstruction = '\n\nMODE: Advanced - Provide deeper theoretical insight and connections to related concepts.';
+    } else if (mode === 'teacher') {
+      modeInstruction = '\n\nMODE: Teacher Mode - Comprehensive explanation with multiple examples and practice problems.';
+    }
+
     const messages = [
       { role: 'system', content: systemPrompt },
       ...conversationHistory.map((msg: any) => ({
         role: msg.role,
         content: msg.content
       })),
-      { role: 'user', content: question }
+      { role: 'user', content: question + modeInstruction }
     ];
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {

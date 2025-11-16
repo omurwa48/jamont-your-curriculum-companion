@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, BookOpen, Loader2 } from "lucide-react";
+import { Send, BookOpen, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { MathRenderer } from "@/components/MathRenderer";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -21,6 +24,7 @@ const Chat = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [explainMode, setExplainMode] = useState("default");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,6 +83,7 @@ const Chat = () => {
         body: {
           question: input,
           conversationHistory: messages.slice(-10),
+          mode: explainMode,
         },
       });
 
@@ -92,6 +97,21 @@ const Chat = () => {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // Update progress if this was a learning interaction
+      if (data.answer && !data.answer.includes("don't see that information")) {
+        try {
+          await supabase.functions.invoke('update-progress', {
+            body: { 
+              topic: input.split(' ').slice(0, 3).join(' '), // Simple topic extraction
+              correct: true,
+              timeSpent: 0 
+            }
+          });
+        } catch (progressError) {
+          console.error('Progress update error:', progressError);
+        }
+      }
     } catch (error) {
       console.error('Chat error:', error);
       const errorMessage: Message = {
@@ -117,13 +137,33 @@ const Chat = () => {
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
       <div className="border-b bg-card px-4 py-4">
-        <div className="max-w-4xl mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-            <BookOpen className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="font-semibold">Jamont</h1>
-            <p className="text-sm text-muted-foreground">Your AI Tutor</p>
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="font-semibold">Jamont</h1>
+                <p className="text-sm text-muted-foreground">Your AI Tutor</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-muted-foreground" />
+              <Select value={explainMode} onValueChange={setExplainMode}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default</SelectItem>
+                  <SelectItem value="simplify">Simplify</SelectItem>
+                  <SelectItem value="exam">Exam Mode</SelectItem>
+                  <SelectItem value="advanced">Advanced</SelectItem>
+                  <SelectItem value="teacher">Teacher Mode</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
@@ -143,7 +183,9 @@ const Chat = () => {
                     : "bg-card"
                 }`}
               >
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                <p className="whitespace-pre-wrap">
+                  <MathRenderer content={message.content} />
+                </p>
                 {message.sources && (
                   <div className="mt-3 pt-3 border-t border-border/50">
                     <p className="text-xs text-muted-foreground">
