@@ -8,3 +8,9 @@ verify_jwt = true
 
 [functions.save-notebook-entry]
 verify_jwt = true
+
+[functions.update-progress]
+verify_jwt = true
+
+[functions.generate-quiz]
+verify_jwt = true

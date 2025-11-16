@@ -1,4 +1,4 @@
-import { BookOpen, Upload, MessageSquare, NotebookPen } from "lucide-react";
+import { BookOpen, Upload, MessageSquare, NotebookPen, TrendingUp } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +8,7 @@ const Navigation = () => {
     { to: "/curriculum", label: "Curriculum", icon: Upload },
     { to: "/chat", label: "Ask Jamont", icon: MessageSquare },
     { to: "/notebook", label: "Notebook", icon: NotebookPen },
+    { to: "/progress", label: "Progress", icon: TrendingUp },
   ];
 
   return (

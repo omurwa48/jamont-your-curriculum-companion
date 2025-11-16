@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Curriculum from "./pages/Curriculum";
 import Chat from "./pages/Chat";
 import Notebook from "./pages/Notebook";
+import Progress from "./pages/Progress";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Navigation from "./components/Navigation";
@@ -80,6 +81,17 @@ const App = () => (
                 <Navigation />
                 <div className="pb-16 md:pb-0 md:pt-16">
                   <Notebook />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/progress"
+            element={
+              <ProtectedRoute>
+                <Navigation />
+                <div className="pb-16 md:pb-0 md:pt-16">
+                  <Progress />
                 </div>
               </ProtectedRoute>
             }

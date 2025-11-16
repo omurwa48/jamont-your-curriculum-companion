@@ -121,6 +121,39 @@ export type Database = {
         }
         Relationships: []
       }
+      learning_streaks: {
+        Row: {
+          created_at: string | null
+          current_streak: number | null
+          id: string
+          last_activity_date: string | null
+          longest_streak: number | null
+          total_points: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_streak?: number | null
+          id?: string
+          last_activity_date?: string | null
+          longest_streak?: number | null
+          total_points?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_streak?: number | null
+          id?: string
+          last_activity_date?: string | null
+          longest_streak?: number | null
+          total_points?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       notebook_entries: {
         Row: {
           content: string
@@ -169,6 +202,143 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+        }
+        Relationships: []
+      }
+      quiz_attempts: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_correct: boolean
+          quiz_id: string
+          time_taken: number | null
+          user_answer: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_correct: boolean
+          quiz_id: string
+          time_taken?: number | null
+          user_answer: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_correct?: boolean
+          quiz_id?: string
+          time_taken?: number | null
+          user_answer?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          correct_answer: string
+          created_at: string | null
+          difficulty: string | null
+          explanation: string | null
+          id: string
+          options: Json
+          question: string
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string | null
+          difficulty?: string | null
+          explanation?: string | null
+          id?: string
+          options: Json
+          question: string
+          topic: string
+          user_id: string
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string | null
+          difficulty?: string | null
+          explanation?: string | null
+          id?: string
+          options?: Json
+          question?: string
+          topic?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_badges: {
+        Row: {
+          badge_description: string | null
+          badge_name: string
+          badge_type: string
+          earned_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          badge_description?: string | null
+          badge_name: string
+          badge_type: string
+          earned_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          badge_description?: string | null
+          badge_name?: string
+          badge_type?: string
+          earned_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_progress: {
+        Row: {
+          correct_answers: number | null
+          created_at: string | null
+          id: string
+          last_practiced_at: string | null
+          mastery_level: number | null
+          questions_answered: number | null
+          topic: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          correct_answers?: number | null
+          created_at?: string | null
+          id?: string
+          last_practiced_at?: string | null
+          mastery_level?: number | null
+          questions_answered?: number | null
+          topic: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          correct_answers?: number | null
+          created_at?: string | null
+          id?: string
+          last_practiced_at?: string | null
+          mastery_level?: number | null
+          questions_answered?: number | null
+          topic?: string
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
