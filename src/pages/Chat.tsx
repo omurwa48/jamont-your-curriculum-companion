@@ -87,7 +87,17 @@ const Chat = () => {
         },
       });
 
-      if (error) throw error;
+      console.log('Chat response:', { data, error });
+
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
+
+      if (!data || !data.answer) {
+        console.error('Invalid response format:', data);
+        throw new Error('Invalid response from AI');
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -96,6 +106,7 @@ const Chat = () => {
         sources: data.sources,
       };
 
+      console.log('Adding assistant message:', assistantMessage);
       setMessages((prev) => [...prev, assistantMessage]);
 
       // Update progress if this was a learning interaction
@@ -114,6 +125,7 @@ const Chat = () => {
       }
     } catch (error) {
       console.error('Chat error:', error);
+      toast.error('Failed to get response from Jamont. Please try again.');
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
