@@ -189,15 +189,15 @@ const Chat = () => {
               className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <Card
-                className={`max-w-[80%] p-4 ${
+                className={`max-w-[80%] p-6 shadow-lg ${
                   message.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-card"
                 }`}
               >
-                <p className="whitespace-pre-wrap">
+                <div className="prose prose-sm max-w-none dark:prose-invert">
                   <MathRenderer content={message.content} />
-                </p>
+                </div>
                 {message.sources && (
                   <div className="mt-3 pt-3 border-t border-border/50">
                     <p className="text-xs text-muted-foreground">

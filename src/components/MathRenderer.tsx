@@ -39,7 +39,7 @@ export const MathRenderer = ({ content }: MathRendererProps) => {
   }
   
   return (
-    <>
+    <div className="math-content">
       {parts.map((part, i) => {
         if (part.type === 'display') {
           return (
@@ -48,11 +48,26 @@ export const MathRenderer = ({ content }: MathRendererProps) => {
             </div>
           );
         } else if (part.type === 'inline') {
-          return <InlineMath key={i} math={part.content} />;
+          return (
+            <span key={i} className="katex-inline">
+              <InlineMath math={part.content} />
+            </span>
+          );
         } else {
-          return <span key={i}>{part.content}</span>;
+          // Split by newlines and create paragraphs
+          const lines = part.content.split('\n');
+          return lines.map((line, lineIdx) => (
+            line.trim() ? (
+              <span key={`${i}-${lineIdx}`}>
+                {line}
+                {lineIdx < lines.length - 1 && <br />}
+              </span>
+            ) : (
+              <br key={`${i}-${lineIdx}`} />
+            )
+          ));
         }
       })}
-    </>
+    </div>
   );
 };
