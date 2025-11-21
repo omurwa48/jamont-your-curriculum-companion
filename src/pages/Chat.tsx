@@ -182,41 +182,74 @@ const Chat = () => {
 
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="max-w-4xl mx-auto space-y-6">
-          {messages.map((message) => (
+        <div className="max-w-4xl mx-auto space-y-1">
+          {messages.map((message, index) => (
             <div
               key={message.id}
-              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`py-6 px-4 ${
+                message.role === "user" 
+                  ? "bg-background" 
+                  : "bg-muted/30"
+              } ${index === 0 ? "rounded-t-lg" : ""} ${index === messages.length - 1 ? "rounded-b-lg" : ""}`}
             >
-              <Card
-                className={`max-w-[80%] p-6 shadow-lg ${
-                  message.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-card"
-                }`}
-              >
-                <div className="prose prose-sm max-w-none dark:prose-invert">
-                  <MathRenderer content={message.content} />
-                </div>
-                {message.sources && (
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <p className="text-xs text-muted-foreground">
-                      Sources: {message.sources.join(", ")}
-                    </p>
+              <div className="max-w-3xl mx-auto">
+                <div className="flex gap-4">
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                    message.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-gradient-to-br from-primary to-secondary text-white"
+                  }`}>
+                    {message.role === "user" ? (
+                      <span className="text-sm font-bold">You</span>
+                    ) : (
+                      <BookOpen className="w-4 h-4" />
+                    )}
                   </div>
-                )}
-              </Card>
+                  
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="mb-1">
+                      <span className="font-semibold text-sm">
+                        {message.role === "user" ? "You" : "Jamont"}
+                      </span>
+                    </div>
+                    <div className="prose prose-sm max-w-none dark:prose-invert text-foreground">
+                      <MathRenderer content={message.content} />
+                    </div>
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-border/30">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <BookOpen className="w-3 h-3" />
+                          <span className="font-medium">Sources:</span>
+                          <span>{message.sources.join(" • ")}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           ))}
           {isLoading && (
-            <div className="flex justify-start">
-              <Card className="max-w-[80%] p-4">
-                <div className="flex gap-2">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
+            <div className="py-6 px-4 bg-muted/30">
+              <div className="max-w-3xl mx-auto">
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="mb-1">
+                      <span className="font-semibold text-sm">Jamont</span>
+                    </div>
+                    <div className="flex gap-1.5 items-center mt-2">
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
+                    </div>
+                  </div>
                 </div>
-              </Card>
+              </div>
             </div>
           )}
         </div>
