@@ -38,15 +38,19 @@ const Dashboard = () => {
   const [level, setLevel] = useState(1);
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (session?.user) {
+      loadDashboardData();
+    }
+  }, [session]);
 
   const loadDashboardData = async () => {
+    if (!session?.user?.id) return;
+    
     try {
       const [coursesData, streakData, profileData] = await Promise.all([
         supabase.from('courses').select('*'),
         supabase.from('learning_streaks').select('*').single(),
-        supabase.from('user_profiles').select('*').eq('user_id', session!.user.id).single(),
+        supabase.from('user_profiles').select('*').eq('user_id', session.user.id).single(),
       ]);
 
       if (coursesData.data) setCourses(coursesData.data);
