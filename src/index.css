@@ -169,3 +169,51 @@ All colors MUST be HSL.
 .animate-pulse-glow {
   animation: pulse-glow 2s infinite;
 }
+
+/* Beautiful KaTeX Math Styling */
+.katex {
+  font-size: 1.1em !important;
+}
+
+.katex-display {
+  margin: 1.5em 0 !important;
+  padding: 1.5em !important;
+  background: hsl(var(--muted) / 0.3) !important;
+  border-radius: 0.75rem !important;
+  border-left: 4px solid hsl(var(--primary)) !important;
+  overflow-x: auto !important;
+}
+
+.katex-display > .katex {
+  text-align: center !important;
+}
+
+.dark .katex {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .katex-display {
+  background: hsl(var(--muted) / 0.5) !important;
+}
+
+/* Math inline styling */
+.katex-inline {
+  padding: 0.1em 0.3em;
+  background: hsl(var(--muted) / 0.4);
+  border-radius: 0.25rem;
+}
+
+/* Improve fraction bars */
+.katex .frac-line {
+  border-bottom-color: hsl(var(--primary)) !important;
+}
+
+/* Style operators */
+.katex .mbin, .katex .mrel {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Style numbers */
+.katex .mord.mathnormal {
+  color: hsl(var(--secondary)) !important;
+}
