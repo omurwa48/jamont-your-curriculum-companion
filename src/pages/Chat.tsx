@@ -26,15 +26,15 @@ const Chat = () => {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [explainMode, setExplainMode] = useState("default");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadChatHistory();
   }, []);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    // Scroll to bottom when messages change
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const loadChatHistory = async () => {
@@ -181,16 +181,16 @@ const Chat = () => {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="max-w-4xl mx-auto space-y-1">
+      <ScrollArea className="flex-1">
+        <div className="max-w-4xl mx-auto">
           {messages.map((message, index) => (
             <div
               key={message.id}
-              className={`py-6 px-4 ${
+              className={`py-6 px-6 ${
                 message.role === "user" 
                   ? "bg-background" 
                   : "bg-muted/30"
-              } ${index === 0 ? "rounded-t-lg" : ""} ${index === messages.length - 1 ? "rounded-b-lg" : ""}`}
+              }`}
             >
               <div className="max-w-3xl mx-auto">
                 <div className="flex gap-4">
@@ -201,7 +201,7 @@ const Chat = () => {
                       : "bg-gradient-to-br from-primary to-secondary text-white"
                   }`}>
                     {message.role === "user" ? (
-                      <span className="text-sm font-bold">You</span>
+                      <span className="text-xs font-bold">U</span>
                     ) : (
                       <BookOpen className="w-4 h-4" />
                     )}
@@ -209,12 +209,12 @@ const Chat = () => {
                   
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="mb-1">
+                    <div className="mb-2">
                       <span className="font-semibold text-sm">
                         {message.role === "user" ? "You" : "Jamont"}
                       </span>
                     </div>
-                    <div className="prose prose-sm max-w-none dark:prose-invert text-foreground">
+                    <div className="prose prose-sm max-w-none dark:prose-invert text-foreground leading-relaxed">
                       <MathRenderer content={message.content} />
                     </div>
                     {message.sources && message.sources.length > 0 && (
@@ -232,17 +232,17 @@ const Chat = () => {
             </div>
           ))}
           {isLoading && (
-            <div className="py-6 px-4 bg-muted/30">
+            <div className="py-6 px-6 bg-muted/30">
               <div className="max-w-3xl mx-auto">
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white">
                     <BookOpen className="w-4 h-4" />
                   </div>
                   <div className="flex-1">
-                    <div className="mb-1">
+                    <div className="mb-2">
                       <span className="font-semibold text-sm">Jamont</span>
                     </div>
-                    <div className="flex gap-1.5 items-center mt-2">
+                    <div className="flex gap-1.5 items-center">
                       <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
                       <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
                       <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
@@ -252,6 +252,7 @@ const Chat = () => {
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
