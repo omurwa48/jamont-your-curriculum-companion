@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { Send, BookOpen, Loader2, Sparkles } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Send, BookOpen, Loader2, Sparkles, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MathRenderer } from "@/components/MathRenderer";
 import { toast } from "sonner";
+import { useVoice } from "@/hooks/useVoice";
+import { VoiceButton } from "@/components/VoiceButton";
 
 interface Message {
   id: string;
@@ -25,8 +26,26 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [explainMode, setExplainMode] = useState("default");
+  const [autoSpeak, setAutoSpeak] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleVoiceTranscript = useCallback((text: string) => {
+    setInput(text);
+  }, []);
+
+  const { 
+    isListening, 
+    isSpeaking, 
+    isSupported, 
+    transcript,
+    startListening, 
+    stopListening, 
+    speak, 
+    stopSpeaking 
+  } = useVoice({
+    onTranscript: handleVoiceTranscript
+  });
 
   useEffect(() => {
     loadChatHistory();
@@ -108,6 +127,19 @@ const Chat = () => {
 
       console.log('Adding assistant message:', assistantMessage);
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // Auto-speak the response if enabled
+      if (autoSpeak && data.answer) {
+        // Clean up the text for speech (remove markdown, latex, etc.)
+        const cleanText = data.answer
+          .replace(/\$\$[\s\S]*?\$\$/g, 'mathematical formula')
+          .replace(/\$[\s\S]*?\$/g, 'formula')
+          .replace(/\*\*/g, '')
+          .replace(/\*/g, '')
+          .replace(/#{1,6}\s/g, '')
+          .replace(/```[\s\S]*?```/g, 'code block');
+        speak(cleanText);
+      }
 
       // Update progress if this was a learning interaction
       if (data.answer && !data.answer.includes("don't see that information")) {
@@ -258,27 +290,68 @@ const Chat = () => {
 
       {/* Input */}
       <div className="border-t bg-card p-4">
-        <div className="max-w-4xl mx-auto flex gap-2">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="Ask Jamont a question about your curriculum..."
-            className="min-h-[60px] resize-none"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-            size="icon"
-            className="h-[60px] w-[60px]"
-          >
-            <Send className="w-5 h-5" />
-          </Button>
+        <div className="max-w-4xl mx-auto space-y-2">
+          {/* Voice status */}
+          {isListening && (
+            <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
+              <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+              Listening... {transcript && `"${transcript}"`}
+            </div>
+          )}
+          {isSpeaking && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Volume2 className="w-4 h-4 animate-pulse" />
+              Jamont is speaking...
+            </div>
+          )}
+          
+          <div className="flex gap-2">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Ask Jamont a question about your curriculum..."
+              className="min-h-[60px] resize-none"
+            />
+            
+            {isSupported && (
+              <VoiceButton
+                isListening={isListening}
+                isSpeaking={isSpeaking}
+                isSupported={isSupported}
+                onToggleListen={isListening ? stopListening : startListening}
+                onStopSpeaking={stopSpeaking}
+              />
+            )}
+            
+            <Button
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              size="icon"
+              className="h-[60px] w-[60px]"
+            >
+              <Send className="w-5 h-5" />
+            </Button>
+          </div>
+          
+          {/* Auto-speak toggle */}
+          {isSupported && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoSpeak}
+                onChange={(e) => setAutoSpeak(e.target.checked)}
+                className="rounded border-border"
+              />
+              <Volume2 className="w-4 h-4" />
+              Auto-speak responses
+            </label>
+          )}
         </div>
       </div>
     </div>

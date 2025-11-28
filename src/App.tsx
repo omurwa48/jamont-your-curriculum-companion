@@ -13,6 +13,9 @@ import Feed from "./pages/Feed";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import StudyTools from "./pages/StudyTools";
+import TeacherDashboard from "./pages/TeacherDashboard";
+import Install from "./pages/Install";
 import Navigation from "./components/Navigation";
 import { useAuth } from "./hooks/useAuth";
 
@@ -44,6 +47,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
+          <Route path="/install" element={<Install />} />
           <Route
             path="/"
             element={
@@ -128,6 +132,28 @@ const App = () => (
                 <Navigation />
                 <div className="pb-16 md:pb-0 md:pt-16">
                   <Profile />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/study-tools"
+            element={
+              <ProtectedRoute>
+                <Navigation />
+                <div className="pb-16 md:pb-0 md:pt-16">
+                  <StudyTools />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/teacher"
+            element={
+              <ProtectedRoute>
+                <Navigation />
+                <div className="pb-16 md:pb-0 md:pt-16">
+                  <TeacherDashboard />
                 </div>
               </ProtectedRoute>
             }
