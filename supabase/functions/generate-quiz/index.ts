@@ -98,12 +98,30 @@ Requirements:
     const aiData = await aiResponse.json();
     const generatedContent = aiData.choices[0].message.content;
     
+    console.log('Raw AI response:', generatedContent.substring(0, 200));
+    
     // Parse JSON response, handling potential markdown code blocks
     let quizData;
     try {
-      const jsonMatch = generatedContent.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? jsonMatch[0] : generatedContent;
+      // First try to extract JSON from markdown code blocks
+      let jsonStr = generatedContent;
+      
+      // Remove markdown code block markers if present
+      const codeBlockMatch = generatedContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1].trim();
+      }
+      
+      // If still not valid JSON, try to extract JSON object
+      if (!jsonStr.startsWith('{')) {
+        const jsonObjectMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonObjectMatch) {
+          jsonStr = jsonObjectMatch[0];
+        }
+      }
+      
       quizData = JSON.parse(jsonStr);
+      console.log('Parsed quiz data successfully');
     } catch (parseError) {
       console.error('Failed to parse AI response:', generatedContent);
       throw new Error('Failed to parse quiz data from AI response');
