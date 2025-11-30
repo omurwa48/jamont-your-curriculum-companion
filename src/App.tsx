@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import StudyTools from "./pages/StudyTools";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import Install from "./pages/Install";
+import Quizzes from "./pages/Quizzes";
 import Navigation from "./components/Navigation";
 import { useAuth } from "./hooks/useAuth";
 
@@ -151,6 +152,17 @@ const App = () => (
                 <Navigation />
                 <div className="pb-16 md:pb-0 md:pt-16">
                   <TeacherDashboard />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quizzes"
+            element={
+              <ProtectedRoute>
+                <Navigation />
+                <div className="pb-16 md:pb-0 md:pt-16">
+                  <Quizzes />
                 </div>
               </ProtectedRoute>
             }

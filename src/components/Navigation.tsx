@@ -1,4 +1,4 @@
-import { Home, MessageSquare, TrendingUp, User, Brain, BookOpen, FolderOpen } from "lucide-react";
+import { Home, MessageSquare, TrendingUp, User, Brain, FolderOpen, HelpCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 
 const Navigation = () => {
@@ -6,7 +6,7 @@ const Navigation = () => {
     { to: "/", label: "Home", icon: Home },
     { to: "/chat", label: "Jamont", icon: MessageSquare },
     { to: "/curriculum", label: "Library", icon: FolderOpen },
-    { to: "/study-tools", label: "Study", icon: Brain },
+    { to: "/quizzes", label: "Quizzes", icon: HelpCircle },
     { to: "/progress", label: "Progress", icon: TrendingUp },
     { to: "/profile", label: "Profile", icon: User },
   ];
