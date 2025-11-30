@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, BookOpen, Loader2, Sparkles, Volume2 } from "lucide-react";
+import { Send, BookOpen, Loader2, Sparkles, Volume2, ArrowLeft, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,6 +10,7 @@ import { MathRenderer } from "@/components/MathRenderer";
 import { toast } from "sonner";
 import { useVoice } from "@/hooks/useVoice";
 import { VoiceButton } from "@/components/VoiceButton";
+import { useNavigate } from "react-router-dom";
 
 interface Message {
   id: string;
@@ -21,6 +22,7 @@ interface Message {
 
 const Chat = () => {
   const { session } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -184,6 +186,14 @@ const Chat = () => {
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => navigate("/")}
+                className="mr-2"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
                 <BookOpen className="w-5 h-5 text-primary-foreground" />
               </div>
@@ -194,9 +204,18 @@ const Chat = () => {
             </div>
             
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/curriculum")}
+                className="hidden md:flex items-center gap-2"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Library
+              </Button>
               <Sparkles className="w-4 h-4 text-muted-foreground" />
               <Select value={explainMode} onValueChange={setExplainMode}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
