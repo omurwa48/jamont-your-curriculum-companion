@@ -85,10 +85,7 @@ const App = () => (
             path="/chat"
             element={
               <ProtectedRoute>
-                <Navigation />
-                <div className="pb-16 md:pb-0 md:pt-16">
-                  <Chat />
-                </div>
+                <Chat />
               </ProtectedRoute>
             }
           />

@@ -1,12 +1,12 @@
-import { Home, MessageSquare, TrendingUp, Users, User, GraduationCap, Brain, BookOpen } from "lucide-react";
+import { Home, MessageSquare, TrendingUp, User, Brain, BookOpen, FolderOpen } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 
 const Navigation = () => {
   const links = [
     { to: "/", label: "Home", icon: Home },
     { to: "/chat", label: "Jamont", icon: MessageSquare },
+    { to: "/curriculum", label: "Library", icon: FolderOpen },
     { to: "/study-tools", label: "Study", icon: Brain },
-    { to: "/teacher", label: "TR-Pad", icon: BookOpen },
     { to: "/progress", label: "Progress", icon: TrendingUp },
     { to: "/profile", label: "Profile", icon: User },
   ];
