@@ -3,18 +3,27 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Progress as ProgressBar } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Trophy, Flame, Target, Award, TrendingUp } from "lucide-react";
-import { toast } from "sonner";
+import { Loader2, Trophy, Flame, Award, BookOpen, CheckCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-interface TopicProgress {
+interface Course {
   id: string;
-  topic: string;
-  mastery_level: number;
-  questions_answered: number;
-  correct_answers: number;
-  last_practiced_at: string;
+  title: string;
+  description: string;
+  total_lessons: number;
+  completed_lessons: number;
+  difficulty: string;
+  estimated_hours: number;
+}
+
+interface Document {
+  id: string;
+  title: string;
+  file_name: string;
+  total_chunks: number;
+  upload_status: string;
+  created_at: string;
 }
 
 interface UserBadge {
@@ -32,28 +41,14 @@ interface LearningStreak {
   last_activity_date: string;
 }
 
-interface Quiz {
-  id: string;
-  topic: string;
-  question: string;
-  options: string[];
-  correct_answer: string;
-  explanation: string;
-  difficulty: string;
-}
-
 const Progress = () => {
   const { session } = useAuth();
-  const [progress, setProgress] = useState<TopicProgress[]>([]);
+  const navigate = useNavigate();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [streak, setStreak] = useState<LearningStreak | null>(null);
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
-  const [selectedAnswer, setSelectedAnswer] = useState<string>("");
-  const [showResult, setShowResult] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [generatingQuiz, setGeneratingQuiz] = useState(false);
 
   useEffect(() => {
     loadProgressData();
@@ -61,13 +56,15 @@ const Progress = () => {
 
   const loadProgressData = async () => {
     try {
-      const [progressData, badgesData, streakData] = await Promise.all([
-        supabase.from('user_progress').select('*').order('last_practiced_at', { ascending: false }),
+      const [coursesData, documentsData, badgesData, streakData] = await Promise.all([
+        supabase.from('courses').select('*').order('created_at', { ascending: false }),
+        supabase.from('documents').select('*').order('created_at', { ascending: false }),
         supabase.from('user_badges').select('*').order('earned_at', { ascending: false }),
         supabase.from('learning_streaks').select('*').single(),
       ]);
 
-      if (progressData.data) setProgress(progressData.data);
+      if (coursesData.data) setCourses(coursesData.data);
+      if (documentsData.data) setDocuments(documentsData.data);
       if (badgesData.data) setBadges(badgesData.data);
       if (streakData.data) setStreak(streakData.data);
     } catch (error) {
@@ -77,70 +74,9 @@ const Progress = () => {
     }
   };
 
-  const generateQuiz = async (topic: string) => {
-    setGeneratingQuiz(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-quiz', {
-        body: { topic, difficulty: 'medium', count: 5 }
-      });
-
-      if (error) throw error;
-
-      if (data?.quizzes && data.quizzes.length > 0) {
-        setQuizzes(data.quizzes);
-        setCurrentQuiz(data.quizzes[0]);
-        toast.success(`Generated ${data.quizzes.length} quiz questions!`);
-      }
-    } catch (error) {
-      console.error('Quiz generation error:', error);
-      toast.error('Failed to generate quiz');
-    } finally {
-      setGeneratingQuiz(false);
-    }
-  };
-
-  const submitAnswer = async () => {
-    if (!currentQuiz || !selectedAnswer) return;
-
-    const correct = selectedAnswer === currentQuiz.correct_answer;
-    setIsCorrect(correct);
-    setShowResult(true);
-
-    try {
-      await supabase.functions.invoke('update-progress', {
-        body: { 
-          topic: currentQuiz.topic, 
-          correct,
-          timeSpent: 30 // Could track actual time
-        }
-      });
-
-      await supabase.from('quiz_attempts').insert({
-        user_id: session!.user.id,
-        quiz_id: currentQuiz.id,
-        user_answer: selectedAnswer,
-        is_correct: correct,
-        time_taken: 30,
-      });
-
-      // Reload progress
-      await loadProgressData();
-    } catch (error) {
-      console.error('Error submitting answer:', error);
-    }
-  };
-
-  const nextQuestion = () => {
-    const currentIndex = quizzes.indexOf(currentQuiz!);
-    if (currentIndex < quizzes.length - 1) {
-      setCurrentQuiz(quizzes[currentIndex + 1]);
-      setSelectedAnswer("");
-      setShowResult(false);
-    } else {
-      toast.success('Quiz completed!');
-      setCurrentQuiz(null);
-      setQuizzes([]);
-    }
+  const getProgressPercentage = (course: Course) => {
+    if (!course.total_lessons || course.total_lessons === 0) return 0;
+    return Math.round((course.completed_lessons / course.total_lessons) * 100);
   };
 
   if (loading) {
@@ -157,7 +93,7 @@ const Progress = () => {
         <h1 className="text-3xl font-bold">Your Learning Progress</h1>
 
         {/* Streak & Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="p-6">
             <div className="flex items-center gap-3">
               <Flame className="w-8 h-8 text-orange-500" />
@@ -187,6 +123,16 @@ const Progress = () => {
               </div>
             </div>
           </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center gap-3">
+              <BookOpen className="w-8 h-8 text-primary" />
+              <div>
+                <p className="text-sm text-muted-foreground">Courses</p>
+                <p className="text-2xl font-bold">{courses.length}</p>
+              </div>
+            </div>
+          </Card>
         </div>
 
         {/* Badges */}
@@ -208,85 +154,109 @@ const Progress = () => {
           </Card>
         )}
 
-        {/* Topic Progress */}
+        {/* Course Progress */}
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Target className="w-5 h-5" /> Topic Mastery
+            <BookOpen className="w-5 h-5" /> Course Progress
           </h2>
           
-          {progress.length === 0 ? (
-            <p className="text-muted-foreground">No progress yet. Start learning to see your progress here!</p>
+          {courses.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">No courses added yet.</p>
+              <p className="text-sm text-muted-foreground">
+                Go to the Dashboard to create courses and track your progress here.
+              </p>
+            </div>
           ) : (
-            <div className="space-y-4">
-              {progress.map((item) => (
-                <div key={item.id} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">{item.topic}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {item.correct_answers}/{item.questions_answered} correct
-                      </p>
+            <div className="space-y-6">
+              {courses.map((course) => {
+                const progress = getProgressPercentage(course);
+                return (
+                  <div key={course.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-semibold text-lg">{course.title}</h3>
+                        {course.description && (
+                          <p className="text-sm text-muted-foreground mt-1">{course.description}</p>
+                        )}
+                      </div>
+                      <Badge variant={progress === 100 ? "default" : "secondary"}>
+                        {course.difficulty}
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold">{item.mastery_level}%</span>
-                      <Button 
-                        size="sm" 
-                        onClick={() => generateQuiz(item.topic)}
-                        disabled={generatingQuiz}
-                      >
-                        {generatingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : "Practice"}
-                      </Button>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {course.completed_lessons} of {course.total_lessons} lessons completed
+                        </span>
+                        <span className="font-semibold">{progress}%</span>
+                      </div>
+                      <ProgressBar value={progress} className="h-2" />
+                      
+                      <div className="flex justify-between items-center text-sm text-muted-foreground pt-2">
+                        <span>{course.estimated_hours} hours estimated</span>
+                        {progress === 100 && (
+                          <span className="flex items-center gap-1 text-green-600">
+                            <CheckCircle className="w-4 h-4" /> Completed
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <ProgressBar value={item.mastery_level} />
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Curriculum Documents */}
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <BookOpen className="w-5 h-5" /> Uploaded Curriculum
+            </h2>
+            <button 
+              onClick={() => navigate('/curriculum')}
+              className="text-sm text-primary hover:underline"
+            >
+              Manage Library →
+            </button>
+          </div>
+          
+          {documents.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">No curriculum documents uploaded.</p>
+              <button 
+                onClick={() => navigate('/curriculum')}
+                className="text-primary hover:underline"
+              >
+                Upload your first document →
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {documents.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <BookOpen className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{doc.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {doc.total_chunks} sections • {doc.upload_status}
+                      </p>
+                    </div>
+                  </div>
+                  {doc.upload_status === 'completed' && (
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  )}
                 </div>
               ))}
             </div>
           )}
         </Card>
-
-        {/* Quiz Interface */}
-        {currentQuiz && (
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Quiz: {currentQuiz.topic}</h2>
-            <p className="mb-6">{currentQuiz.question}</p>
-            
-            <div className="space-y-2 mb-6">
-              {currentQuiz.options.map((option, index) => (
-                <Button
-                  key={index}
-                  variant={selectedAnswer === option ? "default" : "outline"}
-                  className="w-full justify-start"
-                  onClick={() => !showResult && setSelectedAnswer(option)}
-                  disabled={showResult}
-                >
-                  {option}
-                </Button>
-              ))}
-            </div>
-
-            {showResult && (
-              <div className={`p-4 rounded-lg mb-4 ${isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} border`}>
-                <p className="font-semibold mb-2">
-                  {isCorrect ? '✓ Correct!' : '✗ Incorrect'}
-                </p>
-                <p className="text-sm">{currentQuiz.explanation}</p>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              {!showResult ? (
-                <Button onClick={submitAnswer} disabled={!selectedAnswer}>
-                  Submit Answer
-                </Button>
-              ) : (
-                <Button onClick={nextQuestion}>
-                  Next Question
-                </Button>
-              )}
-            </div>
-          </Card>
-        )}
       </div>
     </div>
   );
