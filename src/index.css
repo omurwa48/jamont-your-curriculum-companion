@@ -217,3 +217,61 @@ All colors MUST be HSL.
 .katex .mord.mathnormal {
   color: hsl(var(--secondary)) !important;
 }
+
+/* Beautiful Chat Message Animations */
+@keyframes message-appear {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-message-in {
+  animation: message-appear 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Beautiful markdown highlighting */
+.math-content mark {
+  background: linear-gradient(120deg, hsl(var(--secondary) / 0.3) 0%, hsl(var(--primary) / 0.3) 100%);
+  padding: 0.1em 0.4em;
+  border-radius: 0.25rem;
+  box-decoration-break: clone;
+}
+
+.math-content strong {
+  font-weight: 600;
+}
+
+.math-content h1, .math-content h2, .math-content h3 {
+  font-weight: 700;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 100px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Glass effect for chat bubbles */
+.glass-effect {
+  background: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
