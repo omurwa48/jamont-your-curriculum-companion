@@ -108,32 +108,47 @@ const Chat = () => {
         },
       });
 
-      console.log('Chat response:', { data, error });
+      console.log('Chat response data:', data);
+      console.log('Chat response error:', error);
 
       if (error) {
         console.error('Supabase function error:', error);
         throw error;
       }
 
-      if (!data || !data.answer) {
-        console.error('Invalid response format:', data);
-        throw new Error('Invalid response from AI');
+      if (!data) {
+        console.error('No data returned from chat function');
+        throw new Error('No response from AI');
       }
+
+      const answerText = data.answer || data.message || '';
+      
+      if (!answerText) {
+        console.error('No answer in response:', data);
+        throw new Error('Empty response from AI');
+      }
+
+      console.log('Answer text:', answerText);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: data.answer,
-        sources: data.sources,
+        content: answerText,
+        sources: data.sources || [],
       };
 
-      console.log('Adding assistant message:', assistantMessage);
-      setMessages((prev) => [...prev, assistantMessage]);
+      console.log('Creating assistant message:', assistantMessage);
+      
+      // Use functional update to ensure we get latest state
+      setMessages(prevMessages => {
+        const newMessages = [...prevMessages, assistantMessage];
+        console.log('Updated messages array:', newMessages.length);
+        return newMessages;
+      });
 
       // Auto-speak the response if enabled
-      if (autoSpeak && data.answer) {
-        // Clean up the text for speech (remove markdown, latex, etc.)
-        const cleanText = data.answer
+      if (autoSpeak && answerText) {
+        const cleanText = answerText
           .replace(/\$\$[\s\S]*?\$\$/g, 'mathematical formula')
           .replace(/\$[\s\S]*?\$/g, 'formula')
           .replace(/\*\*/g, '')
@@ -143,29 +158,27 @@ const Chat = () => {
         speak(cleanText);
       }
 
-      // Update progress if this was a learning interaction
-      if (data.answer && !data.answer.includes("don't see that information")) {
-        try {
-          await supabase.functions.invoke('update-progress', {
-            body: { 
-              topic: input.split(' ').slice(0, 3).join(' '), // Simple topic extraction
-              correct: true,
-              timeSpent: 0 
-            }
-          });
-        } catch (progressError) {
-          console.error('Progress update error:', progressError);
-        }
+      // Update progress
+      try {
+        await supabase.functions.invoke('update-progress', {
+          body: { 
+            topic: input.split(' ').slice(0, 3).join(' '),
+            correct: true,
+            timeSpent: 0 
+          }
+        });
+      } catch (progressError) {
+        console.error('Progress update error:', progressError);
       }
     } catch (error) {
       console.error('Chat error:', error);
-      toast.error('Failed to get response from Jamont. Please try again.');
-      const errorMessage: Message = {
+      toast.error('Failed to get response. Please try again.');
+      
+      setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: "I apologize, but I encountered an error. Please try again or upload your curriculum materials if you haven't already.",
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      }]);
     } finally {
       setIsLoading(false);
     }

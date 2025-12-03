@@ -6,11 +6,15 @@ interface MathRendererProps {
 }
 
 export const MathRenderer = ({ content }: MathRendererProps) => {
+  // Handle empty or undefined content
+  if (!content) {
+    return <span>No content</span>;
+  }
+
   // Split content by display math ($$...$$) and inline math ($...$)
   const parts: Array<{ type: 'text' | 'inline' | 'display'; content: string }> = [];
   
   let remaining = content;
-  let index = 0;
   
   while (remaining.length > 0) {
     // Look for display math
@@ -54,18 +58,17 @@ export const MathRenderer = ({ content }: MathRendererProps) => {
             </span>
           );
         } else {
-          // Split by newlines and create paragraphs
-          const lines = part.content.split('\n');
-          return lines.map((line, lineIdx) => (
-            line.trim() ? (
-              <span key={`${i}-${lineIdx}`}>
-                {line}
-                {lineIdx < lines.length - 1 && <br />}
-              </span>
-            ) : (
-              <br key={`${i}-${lineIdx}`} />
-            )
-          ));
+          // Render text content with line breaks
+          return (
+            <span key={i}>
+              {part.content.split('\n').map((line, lineIdx, arr) => (
+                <span key={`${i}-${lineIdx}`}>
+                  {line}
+                  {lineIdx < arr.length - 1 && <br />}
+                </span>
+              ))}
+            </span>
+          );
         }
       })}
     </div>
