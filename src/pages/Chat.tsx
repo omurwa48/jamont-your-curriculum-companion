@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, BookOpen, Loader2, Sparkles, ArrowLeft, FolderOpen, Lightbulb, RefreshCw } from "lucide-react";
+import { Send, BookOpen, Loader2, Sparkles, ArrowLeft, FolderOpen, Lightbulb, RefreshCw, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -56,7 +56,7 @@ const Chat = () => {
         setMessages([{
           id: "welcome",
           role: "assistant",
-          content: "Hello! I'm Jamont, your AI tutor. I'm here to help you understand your curriculum materials. Upload your curriculum in the Curriculum Library, then ask me anything!",
+          content: "Hello! I'm **Jamont**, your AI tutor. I'm here to help you understand your curriculum materials with patience and clarity.\n\n### Getting Started\n- Upload your curriculum in the **Curriculum Library**\n- Ask me anything about your subjects\n- Use the **Study Tools** for summaries and flashcards\n\nWhat would you like to learn today?",
         }]);
       }
     } catch (error) {
@@ -64,7 +64,7 @@ const Chat = () => {
       setMessages([{
         id: "welcome",
         role: "assistant",
-        content: "Hello! I'm Jamont, your AI tutor. Ask me anything about your curriculum!",
+        content: "Hello! I'm **Jamont**, your AI tutor. Ask me anything about your curriculum!",
       }]);
     } finally {
       setLoadingHistory(false);
@@ -82,7 +82,7 @@ const Chat = () => {
       setMessages([{
         id: "welcome",
         role: "assistant",
-        content: "Chat cleared! I'm Jamont, your AI tutor. What would you like to learn today?",
+        content: "Chat cleared! I'm **Jamont**, your AI tutor. What would you like to learn today?",
       }]);
       toast.success("Chat cleared!");
     } catch (error) {
@@ -101,7 +101,6 @@ const Chat = () => {
       content: userContent,
     };
 
-    // Add user message immediately
     setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
@@ -117,7 +116,7 @@ const Chat = () => {
 
       if (error) throw error;
 
-      const answerText = data?.answer || data?.message || "I'm sorry, I couldn't generate a response.";
+      const answerText = data?.answer || data?.message || "I apologize, I could not generate a response. Please try again.";
 
       const assistantMessage: Message = {
         id: `assistant-${Date.now()}`,
@@ -144,30 +143,40 @@ const Chat = () => {
 
   if (loadingHistory) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground">Loading chat...</p>
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="text-center space-y-4 animate-pulse">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-secondary mx-auto flex items-center justify-center">
+            <BookOpen className="w-8 h-8 text-primary-foreground animate-bounce" />
+          </div>
+          <p className="text-muted-foreground font-medium">Loading your conversation...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b bg-card px-4 py-3 shrink-0">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
+      {/* Beautiful Header */}
+      <header className="border-b bg-card/80 backdrop-blur-lg px-4 py-3 shrink-0 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="hover:bg-primary/10">
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-primary-foreground" />
+            <div className="relative">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/25">
+                <BookOpen className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-card animate-pulse"></div>
             </div>
             <div>
-              <h1 className="font-bold text-lg">Jamont AI</h1>
-              <p className="text-xs text-muted-foreground">Your Personal Tutor</p>
+              <h1 className="font-bold text-xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Jamont AI
+              </h1>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Zap className="w-3 h-3 text-secondary" />
+                Your Personal Tutor
+              </p>
             </div>
           </div>
           
@@ -176,27 +185,35 @@ const Chat = () => {
               variant="outline"
               size="sm"
               onClick={() => navigate("/study-tools")}
-              className="hidden sm:flex items-center gap-2"
+              className="hidden sm:flex items-center gap-2 border-primary/20 hover:bg-primary/10 hover:border-primary/40"
             >
-              <Lightbulb className="w-4 h-4" />
-              Study Tools
+              <Lightbulb className="w-4 h-4 text-secondary" />
+              <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent font-medium">
+                Study Tools
+              </span>
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate("/curriculum")}
-              className="hidden sm:flex items-center gap-2"
+              className="hidden sm:flex items-center gap-2 border-primary/20 hover:bg-primary/10"
             >
               <FolderOpen className="w-4 h-4" />
               Library
             </Button>
-            <Button variant="ghost" size="icon" onClick={clearChat} title="Clear chat">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={clearChat} 
+              title="Clear chat"
+              className="hover:bg-destructive/10 hover:text-destructive"
+            >
               <RefreshCw className="w-4 h-4" />
             </Button>
-            <div className="flex items-center gap-1">
-              <Sparkles className="w-4 h-4 text-muted-foreground" />
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              <Sparkles className="w-4 h-4 text-secondary ml-2" />
               <Select value={explainMode} onValueChange={setExplainMode}>
-                <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectTrigger className="w-[110px] h-8 text-xs border-0 bg-transparent">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -211,38 +228,59 @@ const Chat = () => {
         </div>
       </header>
 
-      {/* Messages Area - Using native scroll instead of ScrollArea */}
+      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto py-4">
-          {messages.map((message) => (
+        <div className="max-w-4xl mx-auto py-6 px-4">
+          {messages.map((message, index) => (
             <div
               key={message.id}
-              className={`px-4 py-4 ${
-                message.role === "user" ? "bg-transparent" : "bg-muted/30"
-              }`}
+              className={`mb-6 animate-fade-in`}
+              style={{ animationDelay: `${index * 0.05}s` }}
             >
-              <div className="flex gap-3 max-w-3xl mx-auto">
+              <div className={`flex gap-4 ${message.role === "user" ? "flex-row-reverse" : ""}`}>
                 {/* Avatar */}
-                <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  message.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-gradient-to-br from-primary to-secondary text-white"
-                }`}>
-                  {message.role === "user" ? "U" : <BookOpen className="w-4 h-4" />}
+                <div className={`shrink-0 ${message.role === "user" ? "" : ""}`}>
+                  {message.role === "user" ? (
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center text-sm font-bold text-primary-foreground shadow-md">
+                      U
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
+                      <BookOpen className="w-5 h-5 text-primary-foreground" />
+                    </div>
+                  )}
                 </div>
                 
                 {/* Content */}
-                <div className="flex-1 min-w-0 space-y-2">
-                  <span className="font-semibold text-sm block">
+                <div className={`flex-1 max-w-[85%] ${message.role === "user" ? "text-right" : ""}`}>
+                  <span className={`font-semibold text-sm block mb-2 ${
+                    message.role === "user" 
+                      ? "text-secondary" 
+                      : "bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+                  }`}>
                     {message.role === "user" ? "You" : "Jamont"}
                   </span>
-                  <div className="prose prose-sm max-w-none dark:prose-invert text-foreground">
-                    <MathRenderer content={message.content} />
+                  <div className={`rounded-2xl p-4 ${
+                    message.role === "user" 
+                      ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground ml-auto rounded-tr-md" 
+                      : "bg-card border border-border/50 shadow-sm rounded-tl-md"
+                  }`}>
+                    <div className={`prose prose-sm max-w-none ${
+                      message.role === "user" 
+                        ? "prose-invert text-primary-foreground" 
+                        : "dark:prose-invert text-foreground"
+                    }`}>
+                      {message.role === "user" ? (
+                        <p className="m-0">{message.content}</p>
+                      ) : (
+                        <MathRenderer content={message.content} />
+                      )}
+                    </div>
                   </div>
                   {message.sources && message.sources.length > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/30">
-                      <BookOpen className="w-3 h-3" />
-                      <span>Sources: {message.sources.join(" • ")}</span>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2 bg-muted/30 px-3 py-1.5 rounded-full w-fit">
+                      <BookOpen className="w-3 h-3 text-primary" />
+                      <span>From: {message.sources.join(", ")}</span>
                     </div>
                   )}
                 </div>
@@ -251,17 +289,24 @@ const Chat = () => {
           ))}
           
           {isLoading && (
-            <div className="px-4 py-4 bg-muted/30">
-              <div className="flex gap-3 max-w-3xl mx-auto">
-                <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                  <BookOpen className="w-4 h-4 text-white" />
+            <div className="mb-6 animate-fade-in">
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
+                  <BookOpen className="w-5 h-5 text-primary-foreground" />
                 </div>
-                <div className="flex-1 space-y-2">
-                  <span className="font-semibold text-sm block">Jamont</span>
-                  <div className="flex gap-1.5">
-                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.15s]" />
-                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.3s]" />
+                <div className="flex-1">
+                  <span className="font-semibold text-sm block mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                    Jamont
+                  </span>
+                  <div className="bg-card border border-border/50 rounded-2xl rounded-tl-md p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="flex gap-1.5">
+                        <div className="w-2.5 h-2.5 bg-gradient-to-br from-primary to-secondary rounded-full animate-bounce" />
+                        <div className="w-2.5 h-2.5 bg-gradient-to-br from-primary to-secondary rounded-full animate-bounce [animation-delay:0.15s]" />
+                        <div className="w-2.5 h-2.5 bg-gradient-to-br from-primary to-secondary rounded-full animate-bounce [animation-delay:0.3s]" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">Thinking...</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -271,28 +316,30 @@ const Chat = () => {
         </div>
       </div>
 
-      {/* Input Area */}
-      <footer className="border-t bg-card p-4 shrink-0">
+      {/* Beautiful Input Area */}
+      <footer className="border-t bg-card/80 backdrop-blur-lg p-4 shrink-0">
         <div className="max-w-4xl mx-auto">
-          <div className="flex gap-2">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Ask Jamont anything about your curriculum..."
-              className="min-h-[56px] max-h-[200px] resize-none"
-              disabled={isLoading}
-            />
+          <div className="flex gap-3 items-end">
+            <div className="flex-1 relative">
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Ask Jamont anything about your curriculum..."
+                className="min-h-[56px] max-h-[200px] resize-none pr-4 rounded-2xl border-primary/20 focus:border-primary/50 bg-background/50"
+                disabled={isLoading}
+              />
+            </div>
             <Button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
               size="icon"
-              className="h-14 w-14 shrink-0"
+              className="h-14 w-14 shrink-0 rounded-2xl bg-gradient-to-br from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/30 hover:scale-105"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -301,26 +348,32 @@ const Chat = () => {
               )}
             </Button>
           </div>
-          <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
+          
+          {/* Quick Actions */}
+          <div className="flex flex-wrap gap-2 mt-3">
             <button 
               onClick={() => navigate("/study-tools")} 
-              className="hover:text-primary transition-colors"
+              className="px-3 py-1.5 text-xs rounded-full bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors flex items-center gap-1.5 font-medium"
             >
-              📚 Summaries
+              <span>📚</span> Summaries
             </button>
-            <span>•</span>
             <button 
               onClick={() => navigate("/study-tools")} 
-              className="hover:text-primary transition-colors"
+              className="px-3 py-1.5 text-xs rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1.5 font-medium"
             >
-              🧠 Flashcards
+              <span>🧠</span> Flashcards
             </button>
-            <span>•</span>
             <button 
               onClick={() => navigate("/quizzes")} 
-              className="hover:text-primary transition-colors"
+              className="px-3 py-1.5 text-xs rounded-full bg-muted text-muted-foreground hover:bg-muted/80 transition-colors flex items-center gap-1.5 font-medium"
             >
-              ❓ Quizzes
+              <span>❓</span> Quizzes
+            </button>
+            <button 
+              onClick={() => navigate("/curriculum")} 
+              className="px-3 py-1.5 text-xs rounded-full bg-muted text-muted-foreground hover:bg-muted/80 transition-colors flex items-center gap-1.5 font-medium"
+            >
+              <span>📁</span> Upload Curriculum
             </button>
           </div>
         </div>
