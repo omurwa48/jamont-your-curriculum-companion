@@ -64,39 +64,88 @@ serve(async (req) => {
 
     console.log(`Processing question from user ${user.id}: ${question}`);
 
-    // Retrieve relevant chunks using simple keyword matching
+    // Retrieve ALL chunks for semantic search
     const { data: chunks, error: chunksError } = await supabase
       .from('document_chunks')
       .select('chunk_text, page_number, document_id, documents(title)')
-      .eq('user_id', user.id)
-      .limit(10);
+      .eq('user_id', user.id);
 
     if (chunksError) {
       console.error('Error fetching chunks:', chunksError);
       throw chunksError;
     }
 
-    console.log(`Found ${chunks?.length || 0} chunks`);
+    console.log(`Found ${chunks?.length || 0} total chunks`);
 
-    // Build context from retrieved chunks
+    // Build context from retrieved chunks using advanced semantic matching
     let context = '';
     const sources: string[] = [];
     
     if (chunks && chunks.length > 0) {
-      // Simple relevance scoring: count matching words
-      const questionWords = question.toLowerCase().split(/\s+/);
+      // Advanced relevance scoring with multiple factors
+      const questionLower = question.toLowerCase();
+      const questionWords = questionLower.split(/\s+/).filter((w: string) => w.length > 2);
+      
+      // Remove common stop words
+      const stopWords = new Set(['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her', 'was', 'one', 'our', 'out', 'has', 'have', 'been', 'being', 'some', 'what', 'when', 'where', 'which', 'while', 'who', 'will', 'with', 'would', 'this', 'that', 'from', 'they', 'been', 'have', 'were', 'said', 'each', 'their', 'there', 'about', 'would', 'could', 'should']);
+      const meaningfulWords = questionWords.filter((w: string) => !stopWords.has(w));
+      
       const scoredChunks = chunks.map(chunk => {
-        const chunkWords = chunk.chunk_text.toLowerCase();
-        const matchCount = questionWords.filter((word: string) => 
-          word.length > 3 && chunkWords.includes(word)
-        ).length;
-        return { ...chunk, score: matchCount };
+        const chunkLower = chunk.chunk_text.toLowerCase();
+        let score = 0;
+        
+        // Exact phrase match (highest weight)
+        if (chunkLower.includes(questionLower)) {
+          score += 50;
+        }
+        
+        // N-gram matching (bigrams and trigrams)
+        for (let n = 2; n <= 3; n++) {
+          for (let i = 0; i <= meaningfulWords.length - n; i++) {
+            const ngram = meaningfulWords.slice(i, i + n).join(' ');
+            if (chunkLower.includes(ngram)) {
+              score += n * 5; // Higher weight for longer matches
+            }
+          }
+        }
+        
+        // TF-IDF-like scoring for individual words
+        for (const word of meaningfulWords) {
+          const regex = new RegExp(`\\b${word}\\b`, 'gi');
+          const matches = chunkLower.match(regex);
+          if (matches) {
+            // Term frequency
+            const tf = Math.min(matches.length, 5); // Cap to prevent single-word flooding
+            // Inverse document frequency approximation
+            const docsWithWord = chunks.filter(c => c.chunk_text.toLowerCase().includes(word)).length;
+            const idf = Math.log((chunks.length + 1) / (docsWithWord + 1));
+            score += tf * Math.max(idf, 0.5) * 2;
+          }
+        }
+
+        // Proximity bonus: words appearing close together
+        const positions: number[] = [];
+        for (const word of meaningfulWords) {
+          const idx = chunkLower.indexOf(word);
+          if (idx !== -1) positions.push(idx);
+        }
+        if (positions.length > 1) {
+          positions.sort((a, b) => a - b);
+          const avgDistance = positions.reduce((sum, pos, i) => 
+            i > 0 ? sum + (pos - positions[i-1]) : sum, 0) / (positions.length - 1);
+          if (avgDistance < 100) score += 10; // Words are close together
+        }
+
+        return { ...chunk, score };
       });
 
-      // Sort by relevance and take top 5
+      // Sort by relevance and take top 6 for more context
       const relevantChunks = scoredChunks
+        .filter(c => c.score > 0)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
+        .slice(0, 6);
+
+      console.log(`Top chunks scores: ${relevantChunks.slice(0, 3).map(c => c.score.toFixed(1)).join(', ')}`);
 
       context = relevantChunks
         .map((c, idx) => {
@@ -106,9 +155,9 @@ serve(async (req) => {
           if (!sources.includes(source)) {
             sources.push(source);
           }
-          return `[Excerpt ${idx + 1}]: ${c.chunk_text}`;
+          return `[Excerpt ${idx + 1} - ${source}]:\n${c.chunk_text}`;
         })
-        .join('\n\n');
+        .join('\n\n---\n\n');
     }
 
     if (!context) {

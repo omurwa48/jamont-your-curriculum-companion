@@ -28,22 +28,35 @@ serve(async (req) => {
       throw new Error('User not authenticated');
     }
 
-    const { topic, difficulty = 'medium', count = 5 } = await req.json();
+    const { topic, difficulty = 'medium', count = 5, documentId } = await req.json();
 
-    console.log(`Generating ${count} quizzes for topic: ${topic}, difficulty: ${difficulty}`);
+    console.log(`Generating ${count} quizzes for topic: ${topic}, difficulty: ${difficulty}, doc: ${documentId || 'all'}`);
 
-    // Fetch relevant document chunks
-    const { data: chunks, error: chunksError } = await supabaseClient
+    // Fetch relevant document chunks - if documentId provided, filter by it
+    let chunksQuery = supabaseClient
       .from('document_chunks')
-      .select('chunk_text, document_id')
-      .eq('user_id', user.id)
-      .limit(5);
+      .select('chunk_text, document_id, page_number')
+      .eq('user_id', user.id);
+    
+    if (documentId) {
+      chunksQuery = chunksQuery.eq('document_id', documentId);
+    }
+
+    const { data: chunks, error: chunksError } = await chunksQuery.limit(15);
 
     if (chunksError) throw chunksError;
 
-    const context = chunks && chunks.length > 0
-      ? chunks.map(c => c.chunk_text).join('\n\n')
-      : 'No curriculum uploaded yet.';
+    if (!chunks || chunks.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'No curriculum content found. Please upload documents first.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Combine chunks with page references for better context
+    const context = chunks
+      .map((c, i) => `[Section ${i + 1}, Page ${c.page_number || 'N/A'}]:\n${c.chunk_text}`)
+      .join('\n\n---\n\n');
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
