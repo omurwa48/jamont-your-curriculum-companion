@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
+import DOMPurify from "dompurify";
 
 interface SearchResult {
   id: string;
@@ -98,16 +99,39 @@ export const SmartSearch = ({ onSelectResult }: SmartSearchProps) => {
     }
   };
 
+  // Escape HTML special characters to prevent XSS
+  const escapeHtml = (text: string): string => {
+    const htmlEscapes: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+  };
+
+  // Escape regex special characters to prevent regex injection
+  const escapeRegex = (text: string): string => {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  };
+
   const highlightText = (text: string, query: string) => {
+    // First escape the text to prevent any HTML injection from the content
+    const escapedText = escapeHtml(text);
+    
     const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-    let highlightedText = text;
+    let highlightedText = escapedText;
     
     for (const word of queryWords) {
-      const regex = new RegExp(`(${word})`, 'gi');
+      // Escape special regex characters in the search word
+      const escapedWord = escapeRegex(word);
+      const regex = new RegExp(`(${escapedWord})`, 'gi');
       highlightedText = highlightedText.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">$1</mark>');
     }
     
-    return highlightedText;
+    // Sanitize the final HTML output with DOMPurify
+    return DOMPurify.sanitize(highlightedText, { ALLOWED_TAGS: ['mark'], ALLOWED_ATTR: ['class'] });
   };
 
   const truncateText = (text: string, maxLength: number = 200) => {
