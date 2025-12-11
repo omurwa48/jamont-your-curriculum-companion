@@ -48,12 +48,14 @@ const Install = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="max-w-md w-full">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <Card className="max-w-md w-full bg-card/95 backdrop-blur">
         <CardHeader className="text-center">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <Smartphone className="w-10 h-10 text-white" />
-          </div>
+          <img 
+            src="/icons/jamont-logo.png" 
+            alt="Jamont Technologies" 
+            className="w-48 h-auto mx-auto mb-4"
+          />
           <CardTitle>Install Jamont</CardTitle>
           <CardDescription>
             Install Jamont on your device for quick access and offline learning
