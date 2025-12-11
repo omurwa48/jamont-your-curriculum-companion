@@ -66,8 +66,8 @@ const App = () => {
         )}
       <Toaster />
       <Sonner />
-      <RealtimeNotifications />
       <BrowserRouter>
+        <RealtimeNotifications />
         <Routes>
           <Route path="/auth" element={<Auth />} />
           <Route path="/install" element={<Install />} />
