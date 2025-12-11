@@ -20,6 +20,8 @@ import Install from "./pages/Install";
 import Quizzes from "./pages/Quizzes";
 import Navigation from "./components/Navigation";
 import SplashScreen from "./components/SplashScreen";
+import { RealtimeNotifications } from "./components/RealtimeNotifications";
+import { LoadingScreen } from "./components/LoadingScreen";
 import { useAuth } from "./hooks/useAuth";
 
 const queryClient = new QueryClient();
@@ -28,11 +30,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-primary">Loading...</div>
-      </div>
-    );
+    return <LoadingScreen message="Checking authentication..." />;
   }
 
   if (!user) {
@@ -68,6 +66,7 @@ const App = () => {
         )}
       <Toaster />
       <Sonner />
+      <RealtimeNotifications />
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
