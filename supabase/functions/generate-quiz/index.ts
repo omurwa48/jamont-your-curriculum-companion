@@ -100,10 +100,9 @@ Requirements:
     
     console.log('Raw AI response:', generatedContent.substring(0, 200));
     
-    // Parse JSON response, handling potential markdown code blocks
+    // Parse JSON response, handling potential markdown code blocks and special characters
     let quizData;
     try {
-      // First try to extract JSON from markdown code blocks
       let jsonStr = generatedContent;
       
       // Remove markdown code block markers if present
@@ -120,10 +119,20 @@ Requirements:
         }
       }
       
+      // Sanitize common issues: replace Cyrillic lookalikes with ASCII equivalents
+      jsonStr = jsonStr
+        .replace(/с/g, ',')  // Cyrillic 'с' to comma
+        .replace(/а/g, 'a')  // Cyrillic 'а' to ASCII 'a'
+        .replace(/е/g, 'e')  // Cyrillic 'е' to ASCII 'e'
+        .replace(/о/g, 'o')  // Cyrillic 'о' to ASCII 'o'
+        .replace(/р/g, 'p')  // Cyrillic 'р' to ASCII 'p'
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Remove control characters
+      
       quizData = JSON.parse(jsonStr);
       console.log('Parsed quiz data successfully');
     } catch (parseError) {
       console.error('Failed to parse AI response:', generatedContent);
+      console.error('Parse error:', parseError);
       throw new Error('Failed to parse quiz data from AI response');
     }
 
