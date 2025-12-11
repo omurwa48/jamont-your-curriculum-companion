@@ -35,6 +35,7 @@ const TeacherDashboard = () => {
   const [documents, setDocuments] = useState<DocumentStats[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isTeacher, setIsTeacher] = useState<boolean | null>(null);
   const [stats, setStats] = useState({
     totalStudents: 0,
     avgProgress: 0,
@@ -43,8 +44,41 @@ const TeacherDashboard = () => {
   });
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (session?.user?.id) {
+      checkTeacherRole();
+    }
+  }, [session]);
+
+  const checkTeacherRole = async () => {
+    try {
+      // Check if user has teacher or admin role via RPC
+      const { data, error } = await supabase
+        .rpc('has_role', { _user_id: session?.user?.id, _role: 'teacher' });
+      
+      if (error) {
+        console.error('Error checking role:', error);
+        setIsTeacher(false);
+        setLoading(false);
+        return;
+      }
+
+      // Also check for admin role
+      const { data: isAdmin } = await supabase
+        .rpc('has_role', { _user_id: session?.user?.id, _role: 'admin' });
+
+      if (data || isAdmin) {
+        setIsTeacher(true);
+        loadDashboardData();
+      } else {
+        setIsTeacher(false);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error checking teacher role:', error);
+      setIsTeacher(false);
+      setLoading(false);
+    }
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -135,6 +169,29 @@ const TeacherDashboard = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-primary">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  // Access denied - user is not a teacher or admin
+  if (isTeacher === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="max-w-md w-full mx-4">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Users className="w-8 h-8 text-destructive" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+            <p className="text-muted-foreground mb-4">
+              You don't have permission to access the Teacher Dashboard. 
+              Only users with the teacher or admin role can view this page.
+            </p>
+            <Button variant="outline" asChild>
+              <a href="/">Return to Home</a>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
