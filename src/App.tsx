@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,6 +19,7 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import Install from "./pages/Install";
 import Quizzes from "./pages/Quizzes";
 import Navigation from "./components/Navigation";
+import SplashScreen from "./components/SplashScreen";
 import { useAuth } from "./hooks/useAuth";
 
 const queryClient = new QueryClient();
@@ -40,9 +42,30 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+const App = () => {
+  const [showSplash, setShowSplash] = useState(true);
+  const [hasSeenSplash, setHasSeenSplash] = useState(false);
+
+  useEffect(() => {
+    const seen = sessionStorage.getItem("hasSeenSplash");
+    if (seen) {
+      setShowSplash(false);
+      setHasSeenSplash(true);
+    }
+  }, []);
+
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+    setHasSeenSplash(true);
+    sessionStorage.setItem("hasSeenSplash", "true");
+  };
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        {showSplash && !hasSeenSplash && (
+          <SplashScreen onComplete={handleSplashComplete} />
+        )}
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -170,8 +193,9 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
