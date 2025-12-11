@@ -40,7 +40,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
             <img 
               src="/icons/jamont-logo.png" 
               alt="Jamont Technologies" 
-              className="w-72 md:w-96 h-auto object-contain"
+              className="w-80 md:w-[500px] h-auto object-contain"
             />
           </motion.div>
         </motion.div>
