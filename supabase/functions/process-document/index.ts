@@ -164,65 +164,18 @@ serve(async (req) => {
       .update({ upload_status: 'generating_embeddings' })
       .eq('id', doc.id);
 
-    // Generate embeddings using Lovable AI
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    const chunkRecords = [];
+    // Generate embeddings locally (fast) - no external API calls needed
+    console.log(`[EMBEDDING] Generating embeddings for ${validChunks.length} chunks locally...`);
+    
+    const chunkRecords = validChunks.map((chunk, i) => ({
+      document_id: doc.id,
+      user_id: user.id,
+      chunk_text: chunk,
+      chunk_index: i,
+      page_number: Math.floor(i / 3) + 1,
+    }));
 
-    for (let i = 0; i < validChunks.length; i++) {
-      const chunk = validChunks[i];
-      let embedding: number[] = [];
-
-      try {
-        // Generate semantic summary for embedding using Lovable AI
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash-lite',
-            messages: [
-              { 
-                role: 'system', 
-                content: 'Extract 5-10 key concepts/keywords from this text. Return only comma-separated words, nothing else.' 
-              },
-              { role: 'user', content: chunk.substring(0, 500) }
-            ],
-            max_tokens: 100
-          }),
-        });
-
-        if (response.ok) {
-          const aiData = await response.json();
-          const keywords = aiData.choices?.[0]?.message?.content || '';
-          
-          // Create a semantic-aware embedding based on keywords and content
-          const combinedText = keywords + ' ' + chunk;
-          embedding = generateSemanticEmbedding(combinedText);
-        } else {
-          console.warn(`[WARN] AI call failed for chunk ${i}, using fallback`);
-          embedding = generateSemanticEmbedding(chunk);
-        }
-      } catch (e) {
-        console.warn(`[WARN] Embedding generation failed for chunk ${i}:`, e);
-        embedding = generateSemanticEmbedding(chunk);
-      }
-
-      chunkRecords.push({
-        document_id: doc.id,
-        user_id: user.id,
-        chunk_text: chunk,
-        chunk_index: i,
-        page_number: Math.floor(i / 3) + 1,
-        embedding: JSON.stringify(embedding)
-      });
-
-      // Log progress every 10 chunks
-      if ((i + 1) % 10 === 0) {
-        console.log(`[PROGRESS] Processed ${i + 1}/${validChunks.length} chunks`);
-      }
-    }
+    console.log(`[EMBEDDING] Generated ${chunkRecords.length} chunk records`);
 
     // Update status to storing
     await supabase
@@ -230,18 +183,14 @@ serve(async (req) => {
       .update({ upload_status: 'storing_chunks' })
       .eq('id', doc.id);
 
-    // Store chunks in batches of 50
-    const batchSize = 50;
-    for (let i = 0; i < chunkRecords.length; i += batchSize) {
-      const batch = chunkRecords.slice(i, i + batchSize);
-      const { error: chunksError } = await supabase
-        .from('document_chunks')
-        .insert(batch);
+    // Store all chunks in a single batch (Supabase handles large inserts efficiently)
+    const { error: chunksError } = await supabase
+      .from('document_chunks')
+      .insert(chunkRecords);
 
-      if (chunksError) {
-        console.error(`[ERROR] Batch ${i / batchSize + 1} insert failed:`, chunksError);
-        throw chunksError;
-      }
+    if (chunksError) {
+      console.error(`[ERROR] Chunks insert failed:`, chunksError);
+      throw chunksError;
     }
 
     console.log(`[STEP 5/5] Stored ${chunkRecords.length} chunks`);
@@ -289,29 +238,3 @@ serve(async (req) => {
     );
   }
 });
-
-// Generate a semantic embedding vector from text
-function generateSemanticEmbedding(text: string): number[] {
-  const embedding = new Array(384).fill(0);
-  const words = text.toLowerCase().split(/\W+/).filter(w => w.length > 2);
-  
-  // Create a more meaningful embedding using word frequency and position
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    for (let j = 0; j < word.length; j++) {
-      const charCode = word.charCodeAt(j);
-      const position = (i * 7 + j * 13 + charCode) % 384;
-      embedding[position] += 1 / (i + 1); // Weight by position
-    }
-  }
-  
-  // Normalize the embedding
-  const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-  if (magnitude > 0) {
-    for (let i = 0; i < embedding.length; i++) {
-      embedding[i] = embedding[i] / magnitude;
-    }
-  }
-  
-  return embedding;
-}
