@@ -40,9 +40,11 @@ const Curriculum = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
     try {
       const { data, error } = await supabase
         .from('documents')
@@ -60,6 +62,7 @@ const Curriculum = () => {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [toast]);
 
@@ -374,9 +377,9 @@ const Curriculum = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Uploaded Documents ({documents.length})</h2>
-            <Button variant="ghost" size="sm" onClick={loadDocuments}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
+            <Button variant="ghost" size="sm" onClick={() => loadDocuments(true)} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
           </div>
           
