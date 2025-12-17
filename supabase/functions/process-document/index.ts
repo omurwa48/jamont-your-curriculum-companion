@@ -9,17 +9,14 @@ const corsHeaders = {
 interface ProcessingResult {
   success: boolean;
   documentId?: string;
-  chunksProcessed?: number;
+  message?: string;
   error?: string;
-  processingTimeMs?: number;
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-
-  const startTime = Date.now();
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -158,15 +155,16 @@ serve(async (req) => {
     const validChunks = chunks.filter(c => c.length > 10);
     console.log(`[STEP 4/5] Created ${validChunks.length} chunks`);
 
-    // Update status to embedding
+    // Update status to storing with total chunks count
     await supabase
       .from('documents')
-      .update({ upload_status: 'generating_embeddings' })
+      .update({ 
+        upload_status: 'storing_chunks',
+        total_chunks: validChunks.length
+      })
       .eq('id', doc.id);
 
-    // Generate embeddings locally (fast) - no external API calls needed
-    console.log(`[EMBEDDING] Generating embeddings for ${validChunks.length} chunks locally...`);
-    
+    // Create chunk records
     const chunkRecords = validChunks.map((chunk, i) => ({
       document_id: doc.id,
       user_id: user.id,
@@ -175,21 +173,17 @@ serve(async (req) => {
       page_number: Math.floor(i / 3) + 1,
     }));
 
-    console.log(`[EMBEDDING] Generated ${chunkRecords.length} chunk records`);
-
-    // Update status to storing
-    await supabase
-      .from('documents')
-      .update({ upload_status: 'storing_chunks' })
-      .eq('id', doc.id);
-
-    // Store all chunks in a single batch (Supabase handles large inserts efficiently)
+    // Store all chunks in a single batch
     const { error: chunksError } = await supabase
       .from('document_chunks')
       .insert(chunkRecords);
 
     if (chunksError) {
       console.error(`[ERROR] Chunks insert failed:`, chunksError);
+      await supabase
+        .from('documents')
+        .update({ upload_status: 'error' })
+        .eq('id', doc.id);
       throw chunksError;
     }
 
@@ -204,14 +198,12 @@ serve(async (req) => {
       })
       .eq('id', doc.id);
 
-    const processingTime = Date.now() - startTime;
-    console.log(`[COMPLETE] Document processed in ${processingTime}ms`);
+    console.log(`[COMPLETE] Document processed successfully`);
 
     const result: ProcessingResult = {
       success: true,
       documentId: doc.id,
-      chunksProcessed: validChunks.length,
-      processingTimeMs: processingTime
+      message: `Processed ${validChunks.length} chunks`
     };
 
     return new Response(
@@ -225,8 +217,7 @@ serve(async (req) => {
     
     const result: ProcessingResult = {
       success: false,
-      error: errorMessage,
-      processingTimeMs: Date.now() - startTime
+      error: errorMessage
     };
 
     return new Response(

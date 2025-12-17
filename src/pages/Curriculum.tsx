@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Upload, FileText, Trash2, Loader2, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Upload, FileText, Trash2, Loader2, CheckCircle2, Circle, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -20,18 +20,18 @@ interface Document {
 
 interface UploadProgress {
   fileName: string;
-  status: 'uploading' | 'extracting_text' | 'chunking' | 'generating_embeddings' | 'storing_chunks' | 'completed' | 'error';
+  status: 'uploading' | 'extracting_text' | 'chunking' | 'storing_chunks' | 'completed' | 'error';
   progress: number;
   message: string;
+  documentId?: string;
 }
 
 const UPLOAD_STEPS = [
-  { key: 'uploading', label: 'Uploading file', progress: 10 },
-  { key: 'extracting_text', label: 'Extracting text', progress: 30 },
-  { key: 'chunking', label: 'Creating chunks', progress: 50 },
-  { key: 'generating_embeddings', label: 'Generating AI embeddings', progress: 70 },
-  { key: 'storing_chunks', label: 'Storing data', progress: 90 },
-  { key: 'completed', label: 'Complete!', progress: 100 },
+  { key: 'uploading', label: 'Uploading', progress: 15 },
+  { key: 'extracting_text', label: 'Extracting text', progress: 35 },
+  { key: 'chunking', label: 'Processing', progress: 60 },
+  { key: 'storing_chunks', label: 'Saving', progress: 85 },
+  { key: 'completed', label: 'Done!', progress: 100 },
 ];
 
 const Curriculum = () => {
@@ -40,6 +40,7 @@ const Curriculum = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [loading, setLoading] = useState(true);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -66,48 +67,25 @@ const Curriculum = () => {
     loadDocuments();
   }, [loadDocuments]);
 
-  // Poll for document status updates during upload
+  // Cleanup poll interval on unmount
   useEffect(() => {
-    if (!uploadProgress || uploadProgress.status === 'completed' || uploadProgress.status === 'error') {
-      return;
-    }
-
-    const interval = setInterval(async () => {
-      const { data } = await supabase
-        .from('documents')
-        .select('upload_status')
-        .eq('file_name', uploadProgress.fileName)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (data?.upload_status) {
-        const step = UPLOAD_STEPS.find(s => s.key === data.upload_status);
-        if (step) {
-          setUploadProgress(prev => prev ? {
-            ...prev,
-            status: data.upload_status as UploadProgress['status'],
-            progress: step.progress,
-            message: step.label
-          } : null);
-        }
-
-        if (data.upload_status === 'completed') {
-          clearInterval(interval);
-          loadDocuments();
-          setTimeout(() => setUploadProgress(null), 2000);
-        }
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
       }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [uploadProgress, loadDocuments]);
+    };
+  }, []);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || !session) return;
 
     for (const file of Array.from(files)) {
+      // Clear any existing poll interval
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+
       setUploadProgress({
         fileName: file.name,
         status: 'uploading',
@@ -120,9 +98,43 @@ const Curriculum = () => {
         formData.append('file', file);
         formData.append('title', file.name);
 
-        const { data, error } = await supabase.functions.invoke('process-document', {
+        // Start the upload
+        const uploadPromise = supabase.functions.invoke('process-document', {
           body: formData,
         });
+
+        // Start polling for status updates after a brief delay
+        setTimeout(() => {
+          pollIntervalRef.current = setInterval(async () => {
+            const { data } = await supabase
+              .from('documents')
+              .select('upload_status, total_chunks')
+              .eq('file_name', file.name)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+
+            if (data?.upload_status) {
+              const step = UPLOAD_STEPS.find(s => s.key === data.upload_status);
+              if (step) {
+                setUploadProgress(prev => prev ? {
+                  ...prev,
+                  status: data.upload_status as UploadProgress['status'],
+                  progress: step.progress,
+                  message: `${step.label}${data.total_chunks ? ` (${data.total_chunks} chunks)` : '...'}`
+                } : null);
+              }
+            }
+          }, 300);
+        }, 500);
+
+        const { data, error } = await uploadPromise;
+
+        // Clear polling
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
 
         if (error) throw error;
 
@@ -131,17 +143,26 @@ const Curriculum = () => {
             fileName: file.name,
             status: 'completed',
             progress: 100,
-            message: `Processed ${data.chunksProcessed} chunks in ${(data.processingTimeMs / 1000).toFixed(1)}s`
+            message: data.message || 'Document processed!'
           });
 
           toast({
-            title: "Document processed!",
-            description: `${file.name} is ready for AI learning`,
+            title: "Document ready!",
+            description: `${file.name} is now available for AI learning`,
           });
+
+          // Auto-clear after success
+          setTimeout(() => setUploadProgress(null), 2000);
         } else {
           throw new Error(data.error || 'Processing failed');
         }
       } catch (error) {
+        // Clear polling on error
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+
         console.error('Upload error:', error);
         setUploadProgress({
           fileName: file.name,
@@ -152,7 +173,7 @@ const Curriculum = () => {
         
         toast({
           title: "Upload failed",
-          description: `Failed to upload ${file.name}`,
+          description: `Failed to process ${file.name}`,
           variant: "destructive",
         });
       }
@@ -164,6 +185,12 @@ const Curriculum = () => {
 
   const handleDelete = async (id: string, fileName: string) => {
     try {
+      // Delete chunks first (cascade should handle this, but be explicit)
+      await supabase
+        .from('document_chunks')
+        .delete()
+        .eq('document_id', id);
+
       const { error } = await supabase
         .from('documents')
         .delete()
@@ -187,25 +214,36 @@ const Curriculum = () => {
     }
   };
 
+  const handleRetryFailed = async (doc: Document) => {
+    // Delete the failed document and its chunks
+    await handleDelete(doc.id, doc.title);
+    
+    toast({
+      title: "Document removed",
+      description: "Please try uploading the file again",
+    });
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusDisplay = (status: string) => {
     switch (status) {
-      case 'completed': return 'text-green-600 dark:text-green-400';
-      case 'error': return 'text-destructive';
-      default: return 'text-yellow-600 dark:text-yellow-400';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed': return <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />;
-      case 'error': return <AlertCircle className="w-4 h-4 text-destructive" />;
-      default: return <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />;
+      case 'completed': 
+        return { color: 'text-green-600 dark:text-green-400', label: 'Ready', icon: <CheckCircle2 className="w-4 h-4" /> };
+      case 'error':
+      case 'failed': 
+        return { color: 'text-destructive', label: 'Failed', icon: <AlertCircle className="w-4 h-4" /> };
+      case 'processing':
+      case 'extracting_text':
+      case 'chunking':
+      case 'storing_chunks':
+        return { color: 'text-yellow-600 dark:text-yellow-400', label: 'Processing', icon: <Loader2 className="w-4 h-4 animate-spin" /> };
+      default: 
+        return { color: 'text-muted-foreground', label: status, icon: <Circle className="w-4 h-4" /> };
     }
   };
 
@@ -240,15 +278,22 @@ const Curriculum = () => {
               >
                 <div className="w-full max-w-md space-y-6">
                   <div className="text-center space-y-2">
-                    <h3 className="text-lg font-semibold">Processing {uploadProgress.fileName}</h3>
+                    <h3 className="text-lg font-semibold truncate max-w-xs mx-auto">
+                      {uploadProgress.fileName}
+                    </h3>
                     <p className="text-sm text-muted-foreground">{uploadProgress.message}</p>
                   </div>
 
-                  <Progress value={uploadProgress.progress} className="h-2" />
+                  <div className="space-y-2">
+                    <Progress value={uploadProgress.progress} className="h-3" />
+                    <p className="text-center text-sm font-medium text-primary">
+                      {uploadProgress.progress}%
+                    </p>
+                  </div>
 
                   {/* Step indicators */}
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    {UPLOAD_STEPS.slice(0, 6).map((step, index) => {
+                  <div className="flex justify-between text-xs px-2">
+                    {UPLOAD_STEPS.map((step, index) => {
                       const currentStepIndex = UPLOAD_STEPS.findIndex(s => s.key === uploadProgress.status);
                       const isComplete = index < currentStepIndex;
                       const isCurrent = step.key === uploadProgress.status;
@@ -256,20 +301,20 @@ const Curriculum = () => {
                       return (
                         <div 
                           key={step.key}
-                          className={`flex items-center gap-1 ${
+                          className={`flex flex-col items-center gap-1 ${
                             isComplete ? 'text-green-600 dark:text-green-400' : 
                             isCurrent ? 'text-primary font-medium' : 
-                            'text-muted-foreground'
+                            'text-muted-foreground/50'
                           }`}
                         >
                           {isComplete ? (
-                            <CheckCircle2 className="w-3 h-3" />
+                            <CheckCircle2 className="w-4 h-4" />
                           ) : isCurrent ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            <Circle className="w-3 h-3" />
+                            <Circle className="w-4 h-4" />
                           )}
-                          <span className="truncate">{step.label}</span>
+                          <span className="text-[10px]">{step.label}</span>
                         </div>
                       );
                     })}
@@ -327,50 +372,78 @@ const Curriculum = () => {
 
         {/* Documents List */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Uploaded Documents ({documents.length})</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Uploaded Documents ({documents.length})</h2>
+            <Button variant="ghost" size="sm" onClick={loadDocuments}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+          
           {documents.length === 0 ? (
             <Card className="p-8 text-center text-muted-foreground">
               No documents uploaded yet. Upload your first document to get started.
             </Card>
           ) : (
             <div className="grid gap-4">
-              {documents.map((doc, index) => (
-                <motion.div
-                  key={doc.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <Card className="p-4 flex items-center justify-between hover:shadow-card transition-shadow">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium">{doc.title}</h3>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>{formatFileSize(doc.file_size)}</span>
-                          <span>•</span>
-                          <span>{doc.total_chunks} chunks</span>
-                          <span>•</span>
-                          <span className={`flex items-center gap-1 ${getStatusColor(doc.upload_status)}`}>
-                            {getStatusIcon(doc.upload_status)}
-                            {doc.upload_status}
-                          </span>
+              {documents.map((doc, index) => {
+                const status = getStatusDisplay(doc.upload_status);
+                const isFailed = doc.upload_status === 'error' || doc.upload_status === 'failed';
+                
+                return (
+                  <motion.div
+                    key={doc.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.03 }}
+                  >
+                    <Card className="p-4 flex items-center justify-between hover:shadow-card transition-shadow">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-medium truncate">{doc.title}</h3>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                            <span>{formatFileSize(doc.file_size)}</span>
+                            {doc.total_chunks > 0 && (
+                              <>
+                                <span>•</span>
+                                <span>{doc.total_chunks} chunks</span>
+                              </>
+                            )}
+                            <span>•</span>
+                            <span className={`flex items-center gap-1 ${status.color}`}>
+                              {status.icon}
+                              {status.label}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(doc.id, doc.title)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </Card>
-                </motion.div>
-              ))}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {isFailed && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRetryFailed(doc)}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-1" />
+                            Retry
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(doc.id, doc.title)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </Card>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </div>
