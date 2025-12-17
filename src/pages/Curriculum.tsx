@@ -20,7 +20,15 @@ interface Document {
 
 interface UploadProgress {
   fileName: string;
-  status: 'uploading' | 'extracting_text' | 'chunking' | 'storing_chunks' | 'completed' | 'error';
+  status:
+    | "uploading"
+    | "extracting_text"
+    | "chunking"
+    | "storing_chunks"
+    | "processing"
+    | "completed"
+    | "error"
+    | "failed";
   progress: number;
   message: string;
   documentId?: string;
@@ -83,82 +91,142 @@ const Curriculum = () => {
     const files = event.target.files;
     if (!files || !session) return;
 
+    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+
     for (const file of Array.from(files)) {
       // Clear any existing poll interval
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast({
+          title: "File too large",
+          description: "Please upload a file up to 20MB.",
+          variant: "destructive",
+        });
+        continue;
       }
 
       setUploadProgress({
         fileName: file.name,
-        status: 'uploading',
+        status: "uploading",
         progress: 10,
-        message: 'Uploading file...'
+        message: "Starting upload...",
       });
 
       try {
         const formData = new FormData();
-        formData.append('file', file);
-        formData.append('title', file.name);
+        formData.append("file", file);
+        formData.append("title", file.name);
 
-        // Start the upload
-        const uploadPromise = supabase.functions.invoke('process-document', {
+        // This returns quickly; the backend continues processing in the background.
+        const { data, error } = await supabase.functions.invoke("process-document", {
           body: formData,
         });
 
-        // Start polling for status updates after a brief delay
-        setTimeout(() => {
-          pollIntervalRef.current = setInterval(async () => {
-            const { data } = await supabase
-              .from('documents')
-              .select('upload_status, total_chunks')
-              .eq('file_name', file.name)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
-
-            if (data?.upload_status) {
-              const step = UPLOAD_STEPS.find(s => s.key === data.upload_status);
-              if (step) {
-                setUploadProgress(prev => prev ? {
-                  ...prev,
-                  status: data.upload_status as UploadProgress['status'],
-                  progress: step.progress,
-                  message: `${step.label}${data.total_chunks ? ` (${data.total_chunks} chunks)` : '...'}`
-                } : null);
-              }
-            }
-          }, 300);
-        }, 500);
-
-        const { data, error } = await uploadPromise;
-
-        // Clear polling
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-
         if (error) throw error;
 
-        if (data.success) {
-          setUploadProgress({
-            fileName: file.name,
-            status: 'completed',
-            progress: 100,
-            message: data.message || 'Document processed!'
-          });
-
-          toast({
-            title: "Document ready!",
-            description: `${file.name} is now available for AI learning`,
-          });
-
-          // Auto-clear after success
-          setTimeout(() => setUploadProgress(null), 2000);
-        } else {
-          throw new Error(data.error || 'Processing failed');
+        if (!data?.success || !data?.documentId) {
+          throw new Error(data?.error || "Upload failed to start");
         }
+
+        const documentId = data.documentId as string;
+
+        setUploadProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                documentId,
+                status: "uploading",
+                progress: 15,
+                message: data.message || "Upload received. Processing...",
+              }
+            : null
+        );
+
+        // Poll by document ID so we always track the right file (even if names collide).
+        pollIntervalRef.current = setInterval(async () => {
+          const { data: doc, error: docError } = await supabase
+            .from("documents")
+            .select("upload_status, total_chunks")
+            .eq("id", documentId)
+            .maybeSingle();
+
+          if (docError || !doc?.upload_status) return;
+
+          const rawStatus = doc.upload_status as UploadProgress["status"];
+          const normalizedStatus = (rawStatus === "processing"
+            ? "chunking"
+            : rawStatus) as UploadProgress["status"];
+
+          const step = UPLOAD_STEPS.find((s) => s.key === normalizedStatus);
+          if (step) {
+            setUploadProgress((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    status: normalizedStatus,
+                    progress: step.progress,
+                    message: `${step.label}${doc.total_chunks ? ` (${doc.total_chunks} chunks)` : "..."}`,
+                  }
+                : null
+            );
+          }
+
+          const isTerminal =
+            rawStatus === "completed" || rawStatus === "error" || rawStatus === "failed";
+
+          if (isTerminal) {
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
+
+            if (rawStatus === "completed") {
+              toast({
+                title: "Document ready!",
+                description: `${file.name} is now available for AI learning`,
+              });
+
+              setUploadProgress((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      status: "completed",
+                      progress: 100,
+                      message: "Done!",
+                    }
+                  : null
+              );
+
+              setTimeout(() => setUploadProgress(null), 2000);
+            } else {
+              setUploadProgress((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      status: "error",
+                      progress: 0,
+                      message: "Processing failed. Please try again.",
+                    }
+                  : null
+              );
+
+              toast({
+                title: "Upload failed",
+                description: `Failed to process ${file.name}`,
+                variant: "destructive",
+              });
+            }
+
+            loadDocuments(true);
+          }
+        }, 1200);
+
+        // Refresh list so the new doc appears quickly
+        loadDocuments(true);
       } catch (error) {
         // Clear polling on error
         if (pollIntervalRef.current) {
@@ -166,24 +234,23 @@ const Curriculum = () => {
           pollIntervalRef.current = null;
         }
 
-        console.error('Upload error:', error);
+        console.error("Upload error:", error);
         setUploadProgress({
           fileName: file.name,
-          status: 'error',
+          status: "error",
           progress: 0,
-          message: error instanceof Error ? error.message : 'Upload failed'
+          message: error instanceof Error ? error.message : "Upload failed",
         });
-        
+
         toast({
           title: "Upload failed",
-          description: `Failed to process ${file.name}`,
+          description: `Failed to upload ${file.name}`,
           variant: "destructive",
         });
       }
     }
 
-    event.target.value = '';
-    loadDocuments();
+    event.target.value = "";
   };
 
   const handleDelete = async (id: string, fileName: string) => {
@@ -353,7 +420,7 @@ const Curriculum = () => {
             <div className="text-center">
               <h3 className="text-lg font-semibold mb-2">Upload Documents</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                PDF, DOCX, or TXT files up to 50MB
+                PDF or TXT files up to 20MB
               </p>
             </div>
             <label htmlFor="file-upload">
@@ -364,7 +431,7 @@ const Curriculum = () => {
                 id="file-upload"
                 type="file"
                 className="hidden"
-                accept=".pdf,.docx,.txt"
+                accept=".pdf,.txt"
                 multiple
                 onChange={handleFileUpload}
                 disabled={!!uploadProgress}
