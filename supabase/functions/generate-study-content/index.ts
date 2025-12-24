@@ -6,6 +6,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Enhanced flashcard type prompts
+const FLASHCARD_PROMPTS: Record<string, { system: string; instruction: string }> = {
+  definition: {
+    system: `You are an expert at creating definition flashcards. Create flashcards where the front is a term/concept and the back is its clear, concise definition. Focus on key terminology and foundational concepts.`,
+    instruction: `Create 10 definition flashcards (term → definition) from this content:`
+  },
+  misconception: {
+    system: `You are an expert at identifying common student misconceptions. Create flashcards where the front presents a common misconception or wrong belief, and the back explains why it's wrong and what the correct understanding is.`,
+    instruction: `Create 8 misconception flashcards (common mistake → correct understanding) from this content:`
+  },
+  formula: {
+    system: `You are an expert at creating formula intuition flashcards. Create flashcards where the front shows a formula or equation, and the back explains what it means intuitively, when to use it, and what each part represents. Use LaTeX notation for math.`,
+    instruction: `Create 10 formula intuition flashcards (formula → intuitive explanation) from this content:`
+  },
+  example: {
+    system: `You are an expert at creating example-to-principle flashcards. Create flashcards where the front presents a specific example, scenario, or worked problem, and the back identifies the underlying principle, rule, or concept it demonstrates.`,
+    instruction: `Create 8 example-to-principle flashcards (example → principle) from this content:`
+  },
+  mixed: {
+    system: `You are an expert at creating educational flashcards. Create a mix of different flashcard types: definitions, formulas with explanations, examples to principles, and key concepts. Use LaTeX notation for any math (e.g., $x^2$).`,
+    instruction: `Create 10 diverse flashcards covering key concepts from this content:`
+  }
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -28,7 +52,7 @@ serve(async (req) => {
       throw new Error('Invalid user token');
     }
 
-    const { documentId, type } = await req.json();
+    const { documentId, type, flashcardType = 'mixed' } = await req.json();
 
     if (!documentId || !type) {
       throw new Error('Missing documentId or type');
@@ -64,10 +88,19 @@ serve(async (req) => {
         userPrompt = `Summarize the following curriculum content in a way that's easy to understand and study from:\n\n${content}`;
         break;
 
-      case 'flashcards':
-        systemPrompt = `You are an expert at creating educational flashcards. Create flashcards that test key concepts, definitions, formulas, and important facts. Return your response as a JSON array of objects with "front" (question) and "back" (answer) properties. Use LaTeX notation for any math (e.g., $x^2$). Return ONLY the JSON array, no other text.`;
-        userPrompt = `Create 10 flashcards from this curriculum content:\n\n${content}`;
+      case 'flashcards': {
+        const flashcardConfig = FLASHCARD_PROMPTS[flashcardType] || FLASHCARD_PROMPTS.mixed;
+        systemPrompt = `${flashcardConfig.system}
+
+Return your response as a JSON array of objects with:
+- "front": the question/term/formula side
+- "back": the answer/definition/explanation side
+- "type": the flashcard type (definition, misconception, formula, example, or concept)
+
+Use LaTeX notation for any math (e.g., $x^2$). Return ONLY the JSON array, no other text.`;
+        userPrompt = `${flashcardConfig.instruction}\n\n${content}`;
         break;
+      }
 
       case 'quiz':
         systemPrompt = `You are an expert at creating educational quizzes. Create multiple-choice questions that test understanding of key concepts. Return your response as a JSON array of objects with: "question" (string), "options" (array of 4 strings), "correct" (index 0-3 of correct answer), "explanation" (string explaining why). Use LaTeX notation for math. Return ONLY the JSON array, no other text.`;
@@ -78,7 +111,7 @@ serve(async (req) => {
         throw new Error('Invalid type. Must be summary, flashcards, or quiz');
     }
 
-    console.log(`Generating ${type} for document ${documentId}`);
+    console.log(`Generating ${type} (${type === 'flashcards' ? flashcardType : 'n/a'}) for document ${documentId}`);
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, BookOpen, Loader2, Sparkles, ArrowLeft, FolderOpen, Lightbulb, RefreshCw, Zap } from "lucide-react";
+import { Send, BookOpen, Loader2, Sparkles, ArrowLeft, FolderOpen, Lightbulb, RefreshCw, Zap, MessageCircleQuestion, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MathRenderer } from "@/components/MathRenderer";
@@ -24,6 +26,7 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [explainMode, setExplainMode] = useState("default");
+  const [tutorMode, setTutorMode] = useState<"explain" | "test">("explain");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,6 +114,7 @@ const Chat = () => {
           question: userContent,
           conversationHistory: messages.slice(-10),
           mode: explainMode,
+          tutorMode: tutorMode,
         },
       });
 
@@ -175,12 +179,26 @@ const Chat = () => {
               </h1>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Zap className="w-3 h-3 text-secondary" />
-                Your Personal Tutor
+                {tutorMode === 'test' ? 'Socratic Mode' : 'Your Personal Tutor'}
               </p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Explain vs Test Toggle */}
+            <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5">
+              <GraduationCap className={`w-4 h-4 transition-colors ${tutorMode === 'explain' ? 'text-primary' : 'text-muted-foreground'}`} />
+              <Switch
+                id="tutor-mode"
+                checked={tutorMode === 'test'}
+                onCheckedChange={(checked) => setTutorMode(checked ? 'test' : 'explain')}
+              />
+              <MessageCircleQuestion className={`w-4 h-4 transition-colors ${tutorMode === 'test' ? 'text-secondary' : 'text-muted-foreground'}`} />
+              <Label htmlFor="tutor-mode" className="text-xs font-medium cursor-pointer hidden sm:block">
+                {tutorMode === 'test' ? 'Test Me' : 'Explain'}
+              </Label>
+            </div>
+
             <Button
               variant="outline"
               size="sm"
@@ -210,20 +228,24 @@ const Chat = () => {
             >
               <RefreshCw className="w-4 h-4" />
             </Button>
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-              <Sparkles className="w-4 h-4 text-secondary ml-2" />
-              <Select value={explainMode} onValueChange={setExplainMode}>
-                <SelectTrigger className="w-[110px] h-8 text-xs border-0 bg-transparent">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Default</SelectItem>
-                  <SelectItem value="simplify">Simplify</SelectItem>
-                  <SelectItem value="exam">Exam Mode</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            
+            {/* Explanation mode - only show in explain mode */}
+            {tutorMode === 'explain' && (
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                <Sparkles className="w-4 h-4 text-secondary ml-2" />
+                <Select value={explainMode} onValueChange={setExplainMode}>
+                  <SelectTrigger className="w-[110px] h-8 text-xs border-0 bg-transparent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="simplify">Simplify</SelectItem>
+                    <SelectItem value="exam">Exam Mode</SelectItem>
+                    <SelectItem value="advanced">Advanced</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -231,6 +253,19 @@ const Chat = () => {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto py-6 px-4">
+          {/* Tutor mode indicator */}
+          {tutorMode === 'test' && (
+            <div className="mb-4 p-3 rounded-xl bg-secondary/10 border border-secondary/20 text-sm">
+              <div className="flex items-center gap-2">
+                <MessageCircleQuestion className="w-5 h-5 text-secondary" />
+                <span className="font-medium text-secondary">Socratic Mode Active</span>
+              </div>
+              <p className="text-muted-foreground mt-1 text-xs">
+                I'll ask you questions to help you discover answers yourself, rather than explaining directly.
+              </p>
+            </div>
+          )}
+
           {messages.map((message, index) => (
             <div
               key={message.id}
@@ -305,7 +340,9 @@ const Chat = () => {
                         <div className="w-2.5 h-2.5 bg-gradient-to-br from-primary to-secondary rounded-full animate-bounce [animation-delay:0.15s]" />
                         <div className="w-2.5 h-2.5 bg-gradient-to-br from-primary to-secondary rounded-full animate-bounce [animation-delay:0.3s]" />
                       </div>
-                      <span className="text-sm text-muted-foreground">Thinking...</span>
+                      <span className="text-sm text-muted-foreground">
+                        {tutorMode === 'test' ? 'Thinking of a question...' : 'Thinking...'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -330,7 +367,10 @@ const Chat = () => {
                     handleSend();
                   }
                 }}
-                placeholder="Ask Jamont anything about your curriculum..."
+                placeholder={tutorMode === 'test' 
+                  ? "Ask a question and I'll help you think through it..."
+                  : "Ask Jamont anything about your curriculum..."
+                }
                 className="min-h-[56px] max-h-[200px] resize-none pr-4 rounded-2xl border-primary/20 focus:border-primary/50 bg-background/50"
                 disabled={isLoading}
               />
