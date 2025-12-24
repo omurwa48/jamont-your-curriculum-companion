@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getDocument } from "https://esm.sh/pdfjs-serverless@0.3.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,45 +22,73 @@ function requireAuthToken(req: Request): string {
   return token;
 }
 
-function extractTextFromBytes(opts: {
-  fileName: string;
-  mimeType: string;
+function looksLikePdf(fileName: string, mimeType?: string | null) {
+  return mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
+}
+
+async function extractPdfText(opts: {
   bytes: ArrayBuffer;
-}): string {
+  maxPages?: number;
+  maxChars?: number;
+}): Promise<string> {
+  const { bytes, maxPages = 30, maxChars = 250_000 } = opts;
+
+  const uint8 = new Uint8Array(bytes);
+  const loadingTask = getDocument({ data: uint8, useSystemFonts: true } as any);
+  const pdf = await (loadingTask as any).promise;
+
+  const pages = Math.min((pdf as any).numPages ?? 0, maxPages);
+  let out = "";
+
+  for (let pageNum = 1; pageNum <= pages; pageNum++) {
+    const page = await (pdf as any).getPage(pageNum);
+    const textContent = await page.getTextContent();
+    const pageText = (textContent.items || [])
+      .map((item: any) => (typeof item?.str === "string" ? item.str : ""))
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (pageText) {
+      out += (out ? "\n\n" : "") + pageText;
+      if (out.length >= maxChars) {
+        out = out.slice(0, maxChars);
+        break;
+      }
+    }
+  }
+
+  return out.trim();
+}
+
+async function extractTextFromBytes(opts: {
+  fileName: string;
+  mimeType?: string | null;
+  bytes: ArrayBuffer;
+}): Promise<string> {
   const { fileName, mimeType, bytes } = opts;
-  const textDecoder = new TextDecoder("utf-8");
 
   try {
-    // Handle different file types
-    if (mimeType === "application/pdf") {
-      // PDFs are often binary; we attempt a best-effort extraction of readable text.
-      const rawText = textDecoder.decode(bytes);
-      const textMatches = rawText.match(/[\x20-\x7E\n\r\t]+/g) || [];
-      const extracted = textMatches
-        .filter((t) => t.length > 20)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      if (extracted.length < 100) {
-        console.warn(
-          `[WARN] PDF extraction yielded minimal text for ${fileName} (may need OCR)`
-        );
-        return `[PDF Document: ${fileName}] This document may require OCR processing for full text extraction. Partial content extracted.`;
+    if (looksLikePdf(fileName, mimeType)) {
+      const extracted = await extractPdfText({ bytes });
+      if (extracted.length < 50) {
+        console.warn(`[WARN] PDF extraction yielded minimal text for ${fileName}`);
+        return `[PDF: ${fileName}] No readable text found. This PDF may be scanned and require OCR.`;
       }
-
       return extracted;
     }
 
-    // Text-based files
-    return textDecoder.decode(bytes);
+    const textDecoder = new TextDecoder("utf-8");
+    const raw = textDecoder.decode(bytes);
+    return raw.length > 250_000 ? raw.slice(0, 250_000) : raw;
   } catch (e) {
     console.error("[ERROR] Text extraction failed:", e);
     return `[Document: ${fileName}] Unable to extract text content.`;
   }
 }
 
-function chunkTextByParagraphs(text: string, maxChunkSize = 1500): string[] {
+function chunkTextByParagraphs(text: string, maxChunkSize = 3000): string[] {
   const paragraphs = text.split(/\n\n+/);
   const chunks: string[] = [];
   let currentChunk = "";
@@ -68,7 +97,6 @@ function chunkTextByParagraphs(text: string, maxChunkSize = 1500): string[] {
     if ((currentChunk + para).length > maxChunkSize) {
       if (currentChunk.trim()) chunks.push(currentChunk.trim());
 
-      // If single paragraph is too long, split by words
       if (para.length > maxChunkSize) {
         const words = para.split(" ");
         currentChunk = "";
@@ -89,13 +117,10 @@ function chunkTextByParagraphs(text: string, maxChunkSize = 1500): string[] {
   }
 
   if (currentChunk.trim()) chunks.push(currentChunk.trim());
-
-  // Filter tiny/noise chunks
   return chunks.filter((c) => c.length > 10);
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -119,38 +144,74 @@ serve(async (req) => {
       });
     }
 
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    const title = (formData.get("title") as string | null) || undefined;
+    const contentType = req.headers.get("content-type") || "";
 
-    if (!file) throw new Error("No file provided");
+    let file: File | null = null;
+    let title: string | undefined;
+    let filePath: string | undefined;
+    let fileName: string | undefined;
+    let mimeType: string | undefined;
+    let fileSize: number | undefined;
 
-    console.log(
-      `[START] Processing document request: ${file.name}, size: ${file.size}, type: ${file.type}`
-    );
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      file = (formData.get("file") as File | null) || null;
+      title = (formData.get("title") as string | null) || undefined;
 
-    // Upload file to storage (kept in-request, then the heavy processing happens in background)
-    const filePath = `${user.id}/${Date.now()}_${file.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from("curriculum-files")
-      .upload(filePath, file);
+      if (!file) throw new Error("No file provided");
+      fileName = file.name;
+      mimeType = file.type;
+      fileSize = file.size;
+      filePath = `${user.id}/${Date.now()}_${file.name}`;
 
-    if (uploadError) {
-      console.error("[ERROR] Upload failed:", uploadError);
-      throw uploadError;
+      console.log(`[START] In-function upload: ${file.name}, size: ${file.size}, type: ${file.type}`);
+
+      const { error: uploadError } = await supabase.storage
+        .from("curriculum-files")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error("[ERROR] Upload failed:", uploadError);
+        throw uploadError;
+      }
+
+      console.log("[STEP] File uploaded to storage");
+    } else {
+      const body = (await req.json()) as {
+        title?: string;
+        filePath?: string;
+        fileName?: string;
+        mimeType?: string;
+        fileSize?: number;
+      };
+
+      title = body.title;
+      filePath = body.filePath;
+      fileName = body.fileName;
+      mimeType = body.mimeType;
+      fileSize = body.fileSize;
+
+      if (!filePath) throw new Error("Missing filePath");
+      if (!filePath.startsWith(`${user.id}/`)) throw new Error("Invalid filePath");
+      if (!fileName) throw new Error("Missing fileName");
+
+      console.log(`[START] Processing existing upload: ${fileName} @ ${filePath}`);
     }
-    console.log("[STEP 1/2] File uploaded to storage");
 
-    // Create document record with initial status
+    const resolvedTitle = title || fileName || "Untitled document";
+    const resolvedFileName = fileName || "document";
+    const resolvedMimeType = mimeType || "";
+    const resolvedFileSize = fileSize ?? 0;
+
     const { data: doc, error: docError } = await supabase
       .from("documents")
       .insert({
         user_id: user.id,
-        title: title || file.name,
-        file_name: file.name,
-        file_path: filePath,
-        file_size: file.size,
-        mime_type: file.type,
+        title: resolvedTitle,
+        file_name: resolvedFileName,
+        file_path: filePath!,
+        file_size: resolvedFileSize,
+        mime_type: resolvedMimeType,
         upload_status: "uploading",
         total_chunks: 0,
       })
@@ -163,51 +224,52 @@ serve(async (req) => {
     }
 
     createdDocumentId = doc.id;
-    console.log(`[STEP 2/2] Document record created: ${doc.id}`);
+    console.log(`[DOC] Created: ${doc.id}`);
 
-    // Heavy processing runs in the background so the client request doesn't hang/time out.
     const backgroundTask = async () => {
-      console.log(`[BG] Start processing doc=${doc.id}`);
+      const MAX_CHUNKS = 250;
+      const INSERT_BATCH_SIZE = 100;
+
+      console.log(`[BG] Start doc=${doc.id}`);
 
       try {
-        await supabase
-          .from("documents")
-          .update({ upload_status: "extracting_text" })
-          .eq("id", doc.id);
+        await supabase.from("documents").update({ upload_status: "extracting_text" }).eq("id", doc.id);
 
-        // Download from storage to avoid keeping large file bytes tied to the request lifecycle.
-        const { data: downloaded, error: downloadError } = await supabase.storage
-          .from("curriculum-files")
-          .download(filePath);
+        let bytes: ArrayBuffer;
 
-        if (downloadError || !downloaded) {
-          console.error("[BG][ERROR] Download failed:", downloadError);
-          throw new Error(downloadError?.message || "Download failed");
+        if (file) {
+          bytes = await file.arrayBuffer();
+        } else {
+          const { data: downloaded, error: downloadError } = await supabase.storage
+            .from("curriculum-files")
+            .download(filePath!);
+
+          if (downloadError || !downloaded) {
+            console.error("[BG][ERROR] Download failed:", downloadError);
+            throw new Error(downloadError?.message || "Download failed");
+          }
+
+          bytes = await downloaded.arrayBuffer();
         }
 
-        const bytes = await downloaded.arrayBuffer();
-        const extractedText = extractTextFromBytes({
-          fileName: file.name,
-          mimeType: file.type,
+        const extractedText = await extractTextFromBytes({
+          fileName: resolvedFileName,
+          mimeType: resolvedMimeType,
           bytes,
         });
 
-        console.log(`[BG] Extracted text length: ${extractedText.length}`);
+        console.log(`[BG] Extracted length=${extractedText.length}`);
+
+        await supabase.from("documents").update({ upload_status: "chunking" }).eq("id", doc.id);
+
+        const allChunks = chunkTextByParagraphs(extractedText, 3000);
+        const validChunks = allChunks.length > MAX_CHUNKS ? allChunks.slice(0, MAX_CHUNKS) : allChunks;
+
+        console.log(`[BG] Chunks=${validChunks.length}${allChunks.length > MAX_CHUNKS ? " (capped)" : ""}`);
 
         await supabase
           .from("documents")
-          .update({ upload_status: "chunking" })
-          .eq("id", doc.id);
-
-        const validChunks = chunkTextByParagraphs(extractedText, 1500);
-        console.log(`[BG] Created chunks: ${validChunks.length}`);
-
-        await supabase
-          .from("documents")
-          .update({
-            upload_status: "storing_chunks",
-            total_chunks: validChunks.length,
-          })
+          .update({ upload_status: "storing_chunks", total_chunks: validChunks.length })
           .eq("id", doc.id);
 
         const chunkRecords = validChunks.map((chunk, i) => ({
@@ -218,30 +280,24 @@ serve(async (req) => {
           page_number: Math.floor(i / 3) + 1,
         }));
 
-        const { error: chunksError } = await supabase
-          .from("document_chunks")
-          .insert(chunkRecords);
-
-        if (chunksError) {
-          console.error("[BG][ERROR] Chunks insert failed:", chunksError);
-          throw new Error(chunksError.message);
+        for (let i = 0; i < chunkRecords.length; i += INSERT_BATCH_SIZE) {
+          const batch = chunkRecords.slice(i, i + INSERT_BATCH_SIZE);
+          const { error: chunksError } = await supabase.from("document_chunks").insert(batch);
+          if (chunksError) {
+            console.error("[BG][ERROR] Batch insert failed:", chunksError);
+            throw new Error(chunksError.message);
+          }
         }
 
         await supabase
           .from("documents")
-          .update({
-            upload_status: "completed",
-            total_chunks: validChunks.length,
-          })
+          .update({ upload_status: "completed", total_chunks: validChunks.length })
           .eq("id", doc.id);
 
-        console.log(`[BG][COMPLETE] doc=${doc.id} completed`);
+        console.log(`[BG][COMPLETE] doc=${doc.id}`);
       } catch (e) {
         console.error(`[BG][FATAL] doc=${doc.id} failed:`, e);
-        await supabase
-          .from("documents")
-          .update({ upload_status: "error" })
-          .eq("id", doc.id);
+        await supabase.from("documents").update({ upload_status: "error" }).eq("id", doc.id);
       }
     };
 
@@ -261,13 +317,9 @@ serve(async (req) => {
   } catch (error) {
     console.error("[FATAL] Processing failed:", error);
 
-    // Best-effort: mark record as error if we already created it.
     if (createdDocumentId) {
       try {
-        await supabase
-          .from("documents")
-          .update({ upload_status: "error" })
-          .eq("id", createdDocumentId);
+        await supabase.from("documents").update({ upload_status: "error" }).eq("id", createdDocumentId);
       } catch (e) {
         console.error("[WARN] Failed to set upload_status=error:", e);
       }

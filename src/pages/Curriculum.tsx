@@ -117,22 +117,90 @@ const Curriculum = () => {
       });
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("title", file.name);
+        const userId = session.user.id;
+        const filePath = `${userId}/${Date.now()}_${file.name}`;
 
-        // This returns quickly; the backend continues processing in the background.
-        const { data, error } = await supabase.functions.invoke("process-document", {
-          body: formData,
-        });
+        setUploadProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "uploading",
+                progress: 10,
+                message: "Uploading file...",
+              }
+            : null
+        );
 
-        if (error) throw error;
+        let started:
+          | { success?: boolean; documentId?: string; message?: string; error?: string }
+          | null = null;
 
-        if (!data?.success || !data?.documentId) {
-          throw new Error(data?.error || "Upload failed to start");
+        try {
+          // Try the fast path: upload directly from the client.
+          const { error: storageError } = await supabase.storage
+            .from("curriculum-files")
+            .upload(filePath, file, {
+              contentType: file.type || undefined,
+            });
+
+          if (storageError) throw storageError;
+
+          setUploadProgress((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "uploading",
+                  progress: 15,
+                  message: "File uploaded. Starting processing...",
+                }
+              : null
+          );
+
+          const { data, error } = await supabase.functions.invoke("process-document", {
+            body: {
+              title: file.name,
+              filePath,
+              fileName: file.name,
+              mimeType: file.type,
+              fileSize: file.size,
+            },
+          });
+
+          if (error) throw error;
+          started = data;
+        } catch (e) {
+          // If storage permissions block direct upload, fallback to server-side upload.
+          console.warn("Client upload failed; falling back to backend upload", e);
+
+          setUploadProgress((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "uploading",
+                  progress: 10,
+                  message: "Uploading securely...",
+                }
+              : null
+          );
+
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("title", file.name);
+
+          const { data, error } = await supabase.functions.invoke("process-document", {
+            body: formData,
+          });
+
+          if (error) throw error;
+          started = data;
         }
 
-        const documentId = data.documentId as string;
+        if (!started?.success || !started?.documentId) {
+          throw new Error(started?.error || "Upload failed to start");
+        }
+
+
+        const documentId = started.documentId as string;
 
         setUploadProgress((prev) =>
           prev
@@ -141,10 +209,11 @@ const Curriculum = () => {
                 documentId,
                 status: "uploading",
                 progress: 15,
-                message: data.message || "Upload received. Processing...",
+                message: started?.message || "Processing started...",
               }
             : null
         );
+
 
         // Poll by document ID so we always track the right file (even if names collide).
         pollIntervalRef.current = setInterval(async () => {
