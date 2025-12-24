@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { BookOpen, FileText, Brain, HelpCircle, Loader2, Sparkles, Copy, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { BookOpen, FileText, Brain, HelpCircle, Loader2, Sparkles, Copy, Check, Lightbulb, AlertTriangle, Calculator, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ interface Document {
 interface Flashcard {
   front: string;
   back: string;
+  type?: 'definition' | 'misconception' | 'formula' | 'example' | 'concept';
 }
 
 interface QuizQuestion {
@@ -26,6 +28,16 @@ interface QuizQuestion {
   correct: number;
   explanation: string;
 }
+
+type FlashcardType = 'mixed' | 'definition' | 'misconception' | 'formula' | 'example';
+
+const FLASHCARD_TYPES: { value: FlashcardType; label: string; icon: React.ReactNode; description: string }[] = [
+  { value: 'mixed', label: 'Mixed', icon: <Layers className="w-4 h-4" />, description: 'Diverse mix of all types' },
+  { value: 'definition', label: 'Definitions', icon: <BookOpen className="w-4 h-4" />, description: 'Term → Definition' },
+  { value: 'misconception', label: 'Misconceptions', icon: <AlertTriangle className="w-4 h-4" />, description: 'Common mistake → Correction' },
+  { value: 'formula', label: 'Formula Intuition', icon: <Calculator className="w-4 h-4" />, description: 'Formula → Meaning' },
+  { value: 'example', label: 'Example → Principle', icon: <Lightbulb className="w-4 h-4" />, description: 'Example → Underlying rule' },
+];
 
 const StudyTools = () => {
   const { session } = useAuth();
@@ -44,9 +56,12 @@ const StudyTools = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [copied, setCopied] = useState(false);
+  
+  // Enhanced flashcard options
+  const [flashcardType, setFlashcardType] = useState<FlashcardType>('mixed');
 
   // Load documents on mount
-  useState(() => {
+  useEffect(() => {
     const loadDocuments = async () => {
       try {
         const { data, error } = await supabase
@@ -64,7 +79,7 @@ const StudyTools = () => {
       }
     };
     loadDocuments();
-  });
+  }, []);
 
   const generateSummary = async () => {
     if (!selectedDoc || !session) return;
@@ -96,12 +111,12 @@ const StudyTools = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('generate-study-content', {
-        body: { documentId: selectedDoc, type: 'flashcards' }
+        body: { documentId: selectedDoc, type: 'flashcards', flashcardType }
       });
 
       if (error) throw error;
       setFlashcards(data.flashcards || []);
-      toast.success(`Generated ${data.flashcards?.length || 0} flashcards!`);
+      toast.success(`Generated ${data.flashcards?.length || 0} ${flashcardType} flashcards!`);
     } catch (error) {
       console.error('Error generating flashcards:', error);
       toast.error("Failed to generate flashcards");
@@ -153,6 +168,26 @@ const StudyTools = () => {
     }
   };
 
+  const getFlashcardTypeIcon = (type?: string) => {
+    switch (type) {
+      case 'definition': return <BookOpen className="w-3 h-3" />;
+      case 'misconception': return <AlertTriangle className="w-3 h-3" />;
+      case 'formula': return <Calculator className="w-3 h-3" />;
+      case 'example': return <Lightbulb className="w-3 h-3" />;
+      default: return <Brain className="w-3 h-3" />;
+    }
+  };
+
+  const getFlashcardTypeLabel = (type?: string) => {
+    switch (type) {
+      case 'definition': return 'Definition';
+      case 'misconception': return 'Misconception';
+      case 'formula': return 'Formula';
+      case 'example': return 'Example';
+      default: return 'Concept';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -160,9 +195,9 @@ const StudyTools = () => {
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full">
             <Sparkles className="w-5 h-5 text-primary" />
-            <span className="font-medium text-primary">NotebookLM</span>
+            <span className="font-medium text-primary">Study Tools</span>
           </div>
-          <h1 className="text-3xl font-bold">Study Tools</h1>
+          <h1 className="text-3xl font-bold">AI-Powered Learning</h1>
           <p className="text-muted-foreground">
             Generate summaries, flashcards, and quizzes from your curriculum
           </p>
@@ -268,12 +303,38 @@ const StudyTools = () => {
           <TabsContent value="flashcards">
             <Card>
               <CardHeader>
-                <CardTitle>Flashcards</CardTitle>
+                <CardTitle>Enhanced Flashcards</CardTitle>
                 <CardDescription>
-                  Review key concepts with interactive flashcards
+                  Generate different types of flashcards for deeper learning
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Flashcard Type Selector */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Flashcard Type</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {FLASHCARD_TYPES.map((type) => (
+                      <button
+                        key={type.value}
+                        onClick={() => setFlashcardType(type.value)}
+                        className={`p-3 rounded-lg border text-left transition-all ${
+                          flashcardType === type.value
+                            ? 'border-primary bg-primary/10 ring-2 ring-primary/20'
+                            : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={flashcardType === type.value ? 'text-primary' : 'text-muted-foreground'}>
+                            {type.icon}
+                          </span>
+                          <span className="text-sm font-medium">{type.label}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground hidden sm:block">{type.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <Button 
                   onClick={generateFlashcards} 
                   disabled={!selectedDoc || loading}
@@ -287,7 +348,7 @@ const StudyTools = () => {
                   ) : (
                     <>
                       <Brain className="w-4 h-4 mr-2" />
-                      Generate Flashcards
+                      Generate {FLASHCARD_TYPES.find(t => t.value === flashcardType)?.label} Flashcards
                     </>
                   )}
                 </Button>
@@ -295,9 +356,17 @@ const StudyTools = () => {
                 {flashcards.length > 0 && (
                   <div className="space-y-4">
                     <div 
-                      className="min-h-[200px] p-6 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-xl cursor-pointer transition-all hover:shadow-lg flex items-center justify-center"
+                      className="min-h-[200px] p-6 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-xl cursor-pointer transition-all hover:shadow-lg flex flex-col items-center justify-center relative"
                       onClick={() => setFlipped(!flipped)}
                     >
+                      {/* Type badge */}
+                      {flashcards[currentFlashcard].type && (
+                        <Badge variant="secondary" className="absolute top-4 left-4 flex items-center gap-1">
+                          {getFlashcardTypeIcon(flashcards[currentFlashcard].type)}
+                          {getFlashcardTypeLabel(flashcards[currentFlashcard].type)}
+                        </Badge>
+                      )}
+                      
                       <div className="text-center">
                         <p className="text-xs text-muted-foreground mb-2">
                           {flipped ? "Answer" : "Question"} • Click to flip

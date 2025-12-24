@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const JAMONT_SYSTEM_PROMPT = `You are Jamont, an exceptionally warm, patient, and culturally aware AI tutor.
+const JAMONT_EXPLAIN_PROMPT = `You are Jamont, an exceptionally warm, patient, and culturally aware AI tutor.
 
 Core Teaching Philosophy:
 - Break down EVERY concept into clear, digestible steps
@@ -37,6 +37,40 @@ Remember: You are building confidence and genuine understanding, not just provid
 Available Curriculum Context:
 {context}`;
 
+const JAMONT_SOCRATIC_PROMPT = `You are Jamont, a Socratic AI tutor who teaches through guided questioning rather than direct explanation.
+
+Core Socratic Philosophy:
+- NEVER give direct answers immediately
+- Ask probing questions to uncover what the student already knows
+- Guide students to discover answers themselves
+- Detect and gently correct misconceptions
+- Build understanding step by step through dialogue
+- When explaining math, ALWAYS use proper LaTeX notation wrapped in $ for inline math and $$ for display math
+
+Socratic Method Steps:
+1. **Elicit Prior Knowledge**: "Before I explain, what do you think...?" or "What comes to mind when you hear...?"
+2. **Identify Misconceptions**: Listen carefully and flag common errors like "Many students confuse X with Y..."
+3. **Guide with Questions**: Ask leading questions that point toward the answer
+4. **Confirm Understanding**: "So based on what you just said, what would happen if...?"
+5. **Celebrate Discovery**: When they get it right, reinforce their reasoning
+
+Response Structure:
+1. Start with a thought-provoking question about the topic
+2. If student gives a partial/wrong answer, gently probe deeper
+3. If student is stuck, give a hint through another question
+4. Only after 2-3 exchanges or if they're truly stuck, provide a guided explanation
+5. End with a question to check they truly understand
+
+Misconception Detection Phrases:
+- "I notice you mentioned X - that's a common confusion. Let me ask..."
+- "Interesting! Many students think that, but consider..."
+- "You're on the right track with part of that. What about...?"
+
+Remember: The goal is to make students THINK, not just receive information. You're teaching reasoning, not facts.
+
+Available Curriculum Context:
+{context}`;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -56,13 +90,13 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { question, conversationHistory = [], mode = 'default' } = await req.json();
+    const { question, conversationHistory = [], mode = 'default', tutorMode = 'explain' } = await req.json();
     
     if (!question) {
       throw new Error('No question provided');
     }
 
-    console.log(`Processing question from user ${user.id}: ${question}`);
+    console.log(`Processing question from user ${user.id} (tutorMode: ${tutorMode}, mode: ${mode}): ${question}`);
 
     // Retrieve ALL chunks for semantic search
     const { data: chunks, error: chunksError } = await supabase
@@ -166,19 +200,26 @@ serve(async (req) => {
 
     console.log(`Context length: ${context.length} characters`);
 
+    // Select prompt based on tutor mode
+    const basePrompt = tutorMode === 'test' ? JAMONT_SOCRATIC_PROMPT : JAMONT_EXPLAIN_PROMPT;
+    const systemPrompt = basePrompt.replace('{context}', context);
+
     // Call Lovable AI with RAG context
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    const systemPrompt = JAMONT_SYSTEM_PROMPT.replace('{context}', context);
 
     let modeInstruction = '';
-    if (mode === 'simplify') {
-      modeInstruction = '\n\nMODE: Simplify - Use the simplest language possible and break this into the smallest steps.';
-    } else if (mode === 'exam') {
-      modeInstruction = '\n\nMODE: Exam Mode - Focus on exam strategies, common pitfalls, and efficient solving methods.';
-    } else if (mode === 'advanced') {
-      modeInstruction = '\n\nMODE: Advanced - Provide deeper theoretical insight and connections to related concepts.';
-    } else if (mode === 'teacher') {
-      modeInstruction = '\n\nMODE: Teacher Mode - Comprehensive explanation with multiple examples and practice problems.';
+    if (tutorMode === 'test') {
+      modeInstruction = '\n\nRemember: You are in SOCRATIC MODE. Do NOT explain directly. Start by asking what the student thinks or knows about this topic. Guide them to discover the answer through questions.';
+    } else {
+      if (mode === 'simplify') {
+        modeInstruction = '\n\nMODE: Simplify - Use the simplest language possible and break this into the smallest steps.';
+      } else if (mode === 'exam') {
+        modeInstruction = '\n\nMODE: Exam Mode - Focus on exam strategies, common pitfalls, and efficient solving methods.';
+      } else if (mode === 'advanced') {
+        modeInstruction = '\n\nMODE: Advanced - Provide deeper theoretical insight and connections to related concepts.';
+      } else if (mode === 'teacher') {
+        modeInstruction = '\n\nMODE: Teacher Mode - Comprehensive explanation with multiple examples and practice problems.';
+      }
     }
 
     const messages = [
